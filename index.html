@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myvt - Malaysian VTuber Imageboard</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- FIREBASE SDK (Must be included) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <div class="header">
+        <h1>/myvt/ - Malaysian Virtual Youtubers</h1>
+        <div class="nav">
+            [ <a href="#">Home</a> ] 
+            [ <a href="#">Catalog</a> ] 
+            [ <a href="#">Bottom</a> ]
+        </div>
+    </div>
+
+    <!-- POST FORM -->
+    <div class="post-box">
+        <div class="form-header">Create New Thread</div>
+        <form id="postForm">
+            <input type="text" id="nameInput" placeholder="Name (Anonymous)" value="Anonymous">
+            <input type="text" id="subjectInput" placeholder="Subject">
+            <textarea id="commentInput" placeholder="Comment" required></textarea>
+            
+            <!-- For the MVP, we use Image URL to save backend complexity -->
+            <input type="url" id="imageInput" placeholder="Image URL (e.g. https://imgur.com/example.jpg)">
+            
+            <button type="submit">Post</button>
+        </form>
+    </div>
+
+    <hr>
+
+    <!-- THREADS CONTAINER -->
+    <div id="boardContainer">
+        <!-- Javascript will inject threads here -->
+        <div class="loading">Loading /myvt/...</div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
