@@ -82,21 +82,51 @@ function loadBoardView() {
     document.getElementById('formTitle').innerText = "Create New Thread";
     document.getElementById('subjectInput').style.display = "block";
 
-    const listRef = database.ref('boards/myvt/threads');
+    // Use currentBoard variable (defaults to 'myvt' if you haven't set up the board switcher yet)
+    const boardName = typeof currentBoard !== 'undefined' ? currentBoard : 'myvt';
+    
+    const listRef = database.ref('boards/' + boardName + '/threads');
+    
     listRef.orderByChild('lastUpdated').limitToLast(20).on('value', (snapshot) => {
         const div = document.getElementById('threadList');
         div.innerHTML = "";
         const data = snapshot.val();
         if (!data) return;
 
+        // 1. Sort Threads (Newest Bump at Top)
         const sortedThreads = [];
         snapshot.forEach((childSnap) => {
             sortedThreads.push({ id: childSnap.key, ...childSnap.val() });
         });
         sortedThreads.reverse();
 
+        // 2. Loop through each thread
         sortedThreads.forEach((thread) => {
-            div.innerHTML += renderThreadCard(thread.id, thread, true);
+            // A. Render the Main Post (OP)
+            let threadHtml = renderThreadCard(thread.id, thread, true);
+
+            // B. Render the Latest 2 Replies (Preview)
+            if (thread.replies) {
+                // Convert replies object to array: [[id, data], [id, data]...]
+                const repliesArr = Object.entries(thread.replies);
+                
+                // Sort by time (Oldest -> Newest) so they read correctly
+                repliesArr.sort((a, b) => a[1].timestamp - b[1].timestamp);
+
+                // Slice the last 2 items
+                const lastTwo = repliesArr.slice(-2);
+
+                // Render them
+                lastTwo.forEach(([rId, rData]) => {
+                    threadHtml += renderReply(rId, rData, thread.id);
+                });
+            }
+
+            // C. Add the Divider
+            threadHtml += '<hr class="thread-separator">';
+
+            // D. Inject into page
+            div.innerHTML += threadHtml;
         });
     });
 }
@@ -285,4 +315,5 @@ function unhighlightPost(id) { const el = document.getElementById('post_'+id); i
 function renderImage(url) { return url ? `<img src="${url}" class="thread-image" onclick="openLightbox('${url}')">` : ""; }
 function openLightbox(url) { document.getElementById('lightboxImg').src = url; document.getElementById('lightbox').style.display = 'flex'; }
 function closeLightbox() { document.getElementById('lightbox').style.display = 'none'; }
+
 function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
