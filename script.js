@@ -14,31 +14,24 @@ firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
 // --- ADMIN SETTINGS ---
-// WARNING: Since this is purely frontend, a smart person can find this password in your JS.
-// For a simple community board, this is usually enough.
 const MOD_PASSWORD = "myvt_admin_2024"; 
 let isModMode = false;
 
-// Check if user was already logged in as mod (stored in browser memory)
 if (localStorage.getItem('isMod') === 'true') {
     isModMode = true;
     document.body.classList.add('mod-mode-active');
 }
 
-// Secret Login: Press Shift + L to login
 window.addEventListener('keydown', (e) => {
     if (e.shiftKey && e.key === 'L') {
         const pass = prompt("Enter Moderator Password:");
         if (pass === MOD_PASSWORD) {
-            alert("Mod Mode Active!");
             isModMode = true;
             localStorage.setItem('isMod', 'true');
             document.body.classList.add('mod-mode-active');
-        } else {
-            alert("Wrong password.");
+            alert("Mod Mode Active!");
         }
     }
-    // Logout: Shift + O
     if (e.shiftKey && e.key === 'O') {
         localStorage.removeItem('isMod');
         location.reload();
@@ -98,7 +91,6 @@ function loadThreadView(threadId) {
     database.ref('boards/myvt/threads/' + threadId).on('value', (snap) => {
         const op = snap.val();
         if(!op) {
-            // If thread was deleted while viewing it
             if(window.location.hash.includes(threadId)) window.location.hash = "";
             return;
         }
@@ -159,38 +151,30 @@ function renderReply(id, data, threadId) {
     </div>`;
 }
 
-// --- 4. MODERATION FUNCTIONS ---
+// --- 4. FORMATTING & QUOTES ---
 
-function deleteThread(threadId) {
-    if (!confirm("Are you sure you want to delete this entire thread?")) return;
-    database.ref('boards/myvt/threads/' + threadId).remove()
-        .then(() => alert("Thread deleted."))
-        .catch(err => alert("Error: " + err));
+function formatComment(text) {
+    if (!text) return "";
+    
+    let formatted = escapeHtml(text);
+
+    // Turn &gt;&gt;ID into Links
+    const quoteRegex = /&gt;&gt;([a-zA-Z0-9\-_]+)/g;
+    formatted = formatted.replace(quoteRegex, function(match, id) {
+        return `<a href="#post_${id}" class="quote-link">>>${id.substring(1,8)}</a>`;
+    });
+
+    // Greentext logic
+    const greenRegex = /^(&gt;[^&].*)$/gm;
+    formatted = formatted.replace(greenRegex, '<span style="color:#789922;">$1</span>');
+
+    return formatted;
 }
-
-function deleteReply(threadId, replyId) {
-    if (!confirm("Delete this post?")) return;
-    database.ref('boards/myvt/threads/' + threadId + '/replies/' + replyId).remove()
-        .then(() => alert("Post deleted."))
-        .catch(err => alert("Error: " + err));
-}
-
-// --- 5. THE REST OF YOUR LOGIC (UNCHANGED) ---
 
 function quotePost(id) {
     const box = document.getElementById('commentInput');
     box.value += `>>${id}\n`;
     box.focus();
-    if(currentThreadId) document.getElementById('postForm').scrollIntoView();
-}
-
-function formatComment(text) {
-    if (!text) return "";
-    let formatted = escapeHtml(text);
-    formatted = formatted.replace(/>>([a-zA-Z0-9\-_]+)/g, function(match, id) {
-        return `<a href="#post_${id}" class="quote-link">&gt;&gt;${id.substring(1,8)}</a>`;
-    });
-    return formatted;
 }
 
 function generateBacklinks() {
@@ -213,27 +197,30 @@ function generateBacklinks() {
     });
 }
 
-function highlightPost(id) {
-    const el = document.getElementById('post_' + id);
-    if(el) el.style.background = "#f5c0c0";
+// --- 5. MODERATION ---
+function deleteThread(threadId) {
+    if (confirm("Delete thread?")) database.ref('boards/myvt/threads/' + threadId).remove();
 }
-function unhighlightPost(id) {
-    const el = document.getElementById('post_' + id);
-    if(el) el.style.background = "";
+function deleteReply(threadId, replyId) {
+    if (confirm("Delete reply?")) database.ref('boards/myvt/threads/' + threadId + '/replies/' + replyId).remove();
 }
 
+// --- 6. SUBMIT ---
 document.getElementById('postForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const name = document.getElementById('nameInput').value || "Anonymous";
     const comment = document.getElementById('commentInput').value;
     const image = document.getElementById('imageInput').value;
-    if (!comment) return alert("Comment is required");
+    if (!comment) return alert("Comment required");
+    
     if (image) {
-        const allowedExtensions = /(\.jpg|\.jpeg|\.png|\.gif|\.webp)$/i;
-        if (!allowedExtensions.exec(image)) return alert("Invalid Image URL");
+        const allowed = /(\.jpg|\.jpeg|\.png|\.gif|\.webp)$/i;
+        if (!allowed.exec(image)) return alert("Invalid Image URL");
     }
+
     const now = Date.now();
     const postData = { name, comment, image, timestamp: now };
+
     if (currentThreadId) {
         database.ref('boards/myvt/threads/' + currentThreadId + '/replies').push(postData);
         database.ref('boards/myvt/threads/' + currentThreadId).update({ lastUpdated: now });
@@ -242,25 +229,32 @@ document.getElementById('postForm').addEventListener('submit', function(e) {
         postData.lastUpdated = now;
         database.ref('boards/myvt/threads').push(postData);
     }
+
     document.getElementById('commentInput').value = "";
     document.getElementById('imageInput').value = "";
     document.getElementById('subjectInput').value = "";
 });
 
+// --- 7. HELPERS ---
+function highlightPost(id) {
+    const el = document.getElementById('post_' + id);
+    if(el) el.style.background = "#f5c0c0";
+}
+function unhighlightPost(id) {
+    const el = document.getElementById('post_' + id);
+    if(el) el.style.background = "";
+}
 function renderImage(url) {
     if (!url) return "";
     return `<img src="${url}" class="thread-image" onclick="openLightbox('${url}')">`;
 }
-
 function openLightbox(url) {
     document.getElementById('lightboxImg').src = url;
     document.getElementById('lightbox').style.display = 'flex';
 }
-
 function closeLightbox() {
     document.getElementById('lightbox').style.display = 'none';
 }
-
 function escapeHtml(text) {
     if (!text) return "";
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
