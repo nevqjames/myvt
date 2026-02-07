@@ -129,3 +129,20 @@ textarea { height: 80px; resize: vertical; }
 .post-id:hover {
     color: #d00;
 }
+
+/* ADMIN/MOD STYLES */
+.admin-delete-btn {
+    display: none; /* Hidden by default */
+    color: red;
+    font-weight: bold;
+    margin-left: 10px;
+    cursor: pointer;
+    border: 1px solid red;
+    padding: 0 3px;
+    font-size: 0.8em;
+}
+
+/* When Mod Mode is active, we will use JS to show these */
+.mod-mode-active .admin-delete-btn {
+    display: inline-block;
+}
