@@ -4,12 +4,12 @@
 const firebaseConfig = {
   apiKey: "AIzaSyB-34VVrHjdEnDPDc6rDsBKUA8wLImF2bw",
   authDomain: "myvt-board.firebaseapp.com",
+  databaseURL: "https://myvt-board-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "myvt-board",
   storageBucket: "myvt-board.firebasestorage.app",
   messagingSenderId: "609061476847",
   appId: "1:609061476847:web:85841c6f06a7ff6d8e7e1a",
   measurementId: "G-7TF8SF89DE"
-};
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
