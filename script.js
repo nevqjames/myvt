@@ -13,24 +13,19 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-// State Variables
-let currentThreadId = null; // If null, we are on the main board. If set, we are viewing a thread.
+let currentThreadId = null;
 
-// --- 1. ROUTING (SWITCHING PAGES) ---
-// Listen for URL changes (like index.html#thread_123)
+// --- 1. ROUTING ---
 window.addEventListener('hashchange', router);
 window.addEventListener('load', router);
 
 function router() {
     const hash = window.location.hash;
-    
     if (hash.startsWith("#thread_")) {
-        // VIEW: SINGLE THREAD
         const id = hash.replace("#thread_", "");
         currentThreadId = id;
         loadThreadView(id);
     } else {
-        // VIEW: BOARD INDEX
         currentThreadId = null;
         loadBoardView();
     }
@@ -42,18 +37,27 @@ function loadBoardView() {
     document.getElementById('boardView').style.display = "block";
     document.getElementById('threadView').style.display = "none";
     document.getElementById('formTitle').innerText = "Create New Thread";
-    document.getElementById('subjectInput').style.display = "block"; // Show Subject for new threads
+    document.getElementById('subjectInput').style.display = "block";
 
     const listRef = database.ref('boards/myvt/threads');
-    listRef.limitToLast(20).on('value', (snapshot) => {
+    
+    // NEW: sort by 'lastUpdated' instead of default key
+    listRef.orderByChild('lastUpdated').limitToLast(20).on('value', (snapshot) => {
         const div = document.getElementById('threadList');
         div.innerHTML = "";
         const data = snapshot.val();
         if (!data) return;
 
-        // Convert to array and reverse
-        Object.entries(data).reverse().forEach(([id, thread]) => {
-            // Only show the OP (Original Post) info here
+        // Firebase sorts Ascending (Oldest at bottom). 
+        // We want Descending (Newest at top).
+        // So we create an array and REVERSE it.
+        const sortedThreads = [];
+        snapshot.forEach((childSnap) => {
+            sortedThreads.push({ id: childSnap.key, ...childSnap.val() });
+        });
+        sortedThreads.reverse(); // Now newest bumped threads are at [0]
+
+        sortedThreads.forEach((thread) => {
             div.innerHTML += `
             <div class="thread-card">
                 ${renderImage(thread.image)}
@@ -61,7 +65,7 @@ function loadBoardView() {
                     <span class="subject">${thread.subject || ""}</span>
                     <span class="name">${thread.name}</span>
                     <span class="time">${new Date(thread.timestamp).toLocaleString()}</span>
-                    <a href="#thread_${id}" class="reply-link">[Reply]</a>
+                    <a href="#thread_${thread.id}" class="reply-link">[Reply]</a>
                 </div>
                 <blockquote class="comment">${escapeHtml(thread.comment)}</blockquote>
             </div>`;
@@ -73,11 +77,13 @@ function loadThreadView(threadId) {
     document.getElementById('boardView').style.display = "none";
     document.getElementById('threadView').style.display = "block";
     document.getElementById('formTitle').innerText = "Reply to Thread " + threadId.substring(0,6);
-    document.getElementById('subjectInput').style.display = "none"; // Hide Subject for replies
+    document.getElementById('subjectInput').style.display = "none";
 
-    // 1. Load OP (The main thread starter)
+    // Load OP
     database.ref('boards/myvt/threads/' + threadId).once('value').then((snap) => {
         const op = snap.val();
+        if(!op) return; // Handle if thread was deleted
+        
         document.getElementById('opContainer').innerHTML = `
             <div class="thread-card">
                 ${renderImage(op.image)}
@@ -91,7 +97,7 @@ function loadThreadView(threadId) {
             </div>`;
     });
 
-    // 2. Load Replies (Live Listener)
+    // Load Replies
     database.ref('boards/myvt/threads/' + threadId + '/replies').on('value', (snapshot) => {
         const div = document.getElementById('repliesContainer');
         div.innerHTML = "";
@@ -124,19 +130,31 @@ document.getElementById('postForm').addEventListener('submit', function(e) {
     
     if (!comment) return alert("Comment is required");
 
+    const now = Date.now();
+
     const postData = {
         name: name,
         comment: comment,
         image: image,
-        timestamp: Date.now()
+        timestamp: now
     };
 
     if (currentThreadId) {
-        // CASE A: We are replying to an existing thread
+        // CASE A: REPLYING (Bump Logic)
+        
+        // 1. Push the reply
         database.ref('boards/myvt/threads/' + currentThreadId + '/replies').push(postData);
+        
+        // 2. NEW: Update the PARENT thread's 'lastUpdated' time
+        database.ref('boards/myvt/threads/' + currentThreadId).update({
+            lastUpdated: now
+        });
+
     } else {
-        // CASE B: We are making a NEW thread
-        postData.subject = document.getElementById('subjectInput').value; // Add subject only for threads
+        // CASE B: NEW THREAD
+        postData.subject = document.getElementById('subjectInput').value;
+        postData.lastUpdated = now; // NEW: Initialize lastUpdated
+        
         database.ref('boards/myvt/threads').push(postData);
     }
 
@@ -144,6 +162,11 @@ document.getElementById('postForm').addEventListener('submit', function(e) {
     document.getElementById('commentInput').value = "";
     document.getElementById('imageInput').value = "";
     document.getElementById('subjectInput').value = "";
+    
+    // If we made a new thread, reload to see it
+    if (!currentThreadId) {
+        setTimeout(() => loadBoardView(), 500); 
+    }
 });
 
 // --- HELPER FUNCTIONS ---
