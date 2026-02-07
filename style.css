@@ -1,27 +1,18 @@
 /* RESET & BASIC */
 body {
-    background-color: #ffe; /* Classic pale yellow */
-    color: #800000; /* Dark red text */
+    background-color: #ffe;
+    color: #800000;
     font-family: arial, helvetica, sans-serif;
     font-size: 10pt;
     margin: 0;
     padding: 10px;
 }
 
-a { color: #0000ee; text-decoration: none; }
+a { color: #0000ee; text-decoration: none; cursor: pointer; }
 a:hover { color: #d00; }
 
-/* HEADER */
-.header {
-    text-align: center;
-    margin-bottom: 20px;
-}
-.header h1 {
-    color: #af0a0a;
-    font-size: 24px;
-    margin: 5px;
-}
-.nav { font-size: 12px; }
+.header { text-align: center; margin-bottom: 20px; }
+.header h1 { color: #af0a0a; font-size: 24px; margin: 5px; }
 
 /* POST FORM */
 .post-box {
@@ -30,52 +21,52 @@ a:hover { color: #d00; }
     width: 468px;
     margin: 0 auto;
     padding: 5px;
-    display: table; /* Centers it nicely */
+    display: table; 
 }
-
 .form-header {
     background-color: #e04000;
     color: white;
     font-weight: bold;
     text-align: center;
     padding: 2px;
-    font-size: 11pt;
 }
-
 form { display: flex; flex-direction: column; gap: 5px; padding: 10px; }
 input, textarea { width: 98%; border: 1px solid #ccc; padding: 2px; }
 textarea { height: 80px; resize: vertical; }
 
-/* THREAD LAYOUT */
-.thread {
-    margin-top: 20px;
-    clear: both;
+/* THREAD LIST */
+.thread-card {
     border-bottom: 1px solid #d9bfb7;
-    padding-bottom: 15px;
+    padding: 10px;
+    margin-bottom: 10px;
+    overflow: hidden; /* Clears floats */
 }
 
-.post-info {
-    background-color: #f0e0d6; /* Post header bg */
-    padding: 2px;
-    display: inline-block;
-}
-
+/* INDIVIDUAL POSTS */
+.post-info { background-color: #f0e0d6; padding: 2px; display: inline-block; }
 .subject { color: #cc1105; font-weight: bold; }
 .name { color: #117743; font-weight: bold; }
 .time { color: #555; font-size: 0.9em; }
-.post-id { color: #555; cursor: pointer; }
 
-/* IMAGE HANDLING */
 .thread-image {
     float: left;
     margin: 5px 20px 20px 5px;
     max-width: 250px;
     max-height: 250px;
-    border: 2px solid #000055; /* Dark blue border */
+    border: 2px solid #000055;
 }
 
-.comment {
-    margin-left: 15px;
-    word-wrap: break-word;
-    white-space: pre-wrap; /* Keeps formatting */
+.comment { margin-left: 15px; word-wrap: break-word; white-space: pre-wrap; }
+
+/* REPLIES */
+.reply {
+    background-color: #f0e0d6;
+    border: 1px solid #d9bfb7;
+    margin: 4px 0 4px 20px; /* Indent */
+    padding: 4px;
+    display: table;
+    min-width: 400px;
 }
+.reply .post-info { background-color: transparent; } /* Replies don't need darker headers */
+
+.reply-link { float: right; font-size: 20px; margin-right: 10px; }

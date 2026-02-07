@@ -10,106 +10,149 @@ const firebaseConfig = {
   measurementId: "G-7TF8SF89DE"
 }; // <--- FIXED: Closed the object here
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-// --- STEP 2: REFERENCES ---
-// We store everything under 'boards/myvt'
-const boardRef = database.ref('boards/myvt/posts');
-const container = document.getElementById('boardContainer');
+// State Variables
+let currentThreadId = null; // If null, we are on the main board. If set, we are viewing a thread.
 
-// --- STEP 3: SUBMIT NEW POST ---
+// --- 1. ROUTING (SWITCHING PAGES) ---
+// Listen for URL changes (like index.html#thread_123)
+window.addEventListener('hashchange', router);
+window.addEventListener('load', router);
+
+function router() {
+    const hash = window.location.hash;
+    
+    if (hash.startsWith("#thread_")) {
+        // VIEW: SINGLE THREAD
+        const id = hash.replace("#thread_", "");
+        currentThreadId = id;
+        loadThreadView(id);
+    } else {
+        // VIEW: BOARD INDEX
+        currentThreadId = null;
+        loadBoardView();
+    }
+}
+
+// --- 2. VIEW LOGIC ---
+
+function loadBoardView() {
+    document.getElementById('boardView').style.display = "block";
+    document.getElementById('threadView').style.display = "none";
+    document.getElementById('formTitle').innerText = "Create New Thread";
+    document.getElementById('subjectInput').style.display = "block"; // Show Subject for new threads
+
+    const listRef = database.ref('boards/myvt/threads');
+    listRef.limitToLast(20).on('value', (snapshot) => {
+        const div = document.getElementById('threadList');
+        div.innerHTML = "";
+        const data = snapshot.val();
+        if (!data) return;
+
+        // Convert to array and reverse
+        Object.entries(data).reverse().forEach(([id, thread]) => {
+            // Only show the OP (Original Post) info here
+            div.innerHTML += `
+            <div class="thread-card">
+                ${renderImage(thread.image)}
+                <div class="post-info">
+                    <span class="subject">${thread.subject || ""}</span>
+                    <span class="name">${thread.name}</span>
+                    <span class="time">${new Date(thread.timestamp).toLocaleString()}</span>
+                    <a href="#thread_${id}" class="reply-link">[Reply]</a>
+                </div>
+                <blockquote class="comment">${escapeHtml(thread.comment)}</blockquote>
+            </div>`;
+        });
+    });
+}
+
+function loadThreadView(threadId) {
+    document.getElementById('boardView').style.display = "none";
+    document.getElementById('threadView').style.display = "block";
+    document.getElementById('formTitle').innerText = "Reply to Thread " + threadId.substring(0,6);
+    document.getElementById('subjectInput').style.display = "none"; // Hide Subject for replies
+
+    // 1. Load OP (The main thread starter)
+    database.ref('boards/myvt/threads/' + threadId).once('value').then((snap) => {
+        const op = snap.val();
+        document.getElementById('opContainer').innerHTML = `
+            <div class="thread-card">
+                ${renderImage(op.image)}
+                <div class="post-info">
+                    <span class="subject">${op.subject || ""}</span>
+                    <span class="name">${op.name}</span>
+                    <span class="time">${new Date(op.timestamp).toLocaleString()}</span>
+                    <span class="post-id">No. ${threadId}</span>
+                </div>
+                <blockquote class="comment">${escapeHtml(op.comment)}</blockquote>
+            </div>`;
+    });
+
+    // 2. Load Replies (Live Listener)
+    database.ref('boards/myvt/threads/' + threadId + '/replies').on('value', (snapshot) => {
+        const div = document.getElementById('repliesContainer');
+        div.innerHTML = "";
+        const data = snapshot.val();
+        if (!data) return;
+
+        Object.entries(data).forEach(([id, reply]) => {
+            div.innerHTML += `
+            <div class="reply">
+                <div class="post-info">
+                    <span class="name">${reply.name}</span>
+                    <span class="time">${new Date(reply.timestamp).toLocaleString()}</span>
+                    <span class="post-id">No. ${id.substring(1,8)}</span>
+                </div>
+                <br>
+                ${renderImage(reply.image)}
+                <blockquote class="comment">${escapeHtml(reply.comment)}</blockquote>
+            </div>`;
+        });
+    });
+}
+
+// --- 3. SUBMIT LOGIC ---
 document.getElementById('postForm').addEventListener('submit', function(e) {
-    e.preventDefault(); // Stop page refresh
+    e.preventDefault();
 
     const name = document.getElementById('nameInput').value || "Anonymous";
-    const subject = document.getElementById('subjectInput').value;
     const comment = document.getElementById('commentInput').value;
-    const imageUrl = document.getElementById('imageInput').value;
+    const image = document.getElementById('imageInput').value;
+    
+    if (!comment) return alert("Comment is required");
 
-    if (!comment) return alert("Comment is required!");
-
-    // Create the data object
-    const newPost = {
+    const postData = {
         name: name,
-        subject: subject,
         comment: comment,
-        image: imageUrl,
+        image: image,
         timestamp: Date.now()
     };
 
-    // Push to Firebase (It creates a unique ID automatically)
-    boardRef.push(newPost, (error) => {
-        if (error) {
-            alert("Error posting: " + error.message);
-        } else {
-            // Clear form on success
-            document.getElementById('commentInput').value = "";
-            document.getElementById('imageInput').value = "";
-            document.getElementById('subjectInput').value = "";
-        }
-    });
-});
-
-// --- STEP 4: LOAD POSTS (Realtime) ---
-// This runs once on load, and again every time someone posts
-boardRef.limitToLast(50).on('value', (snapshot) => {
-    container.innerHTML = ""; // Clear current list
-    
-    const data = snapshot.val();
-    
-    if (!data) {
-        container.innerHTML = "<p style='text-align:center'>No threads yet. Be the first!</p>";
-        return;
+    if (currentThreadId) {
+        // CASE A: We are replying to an existing thread
+        database.ref('boards/myvt/threads/' + currentThreadId + '/replies').push(postData);
+    } else {
+        // CASE B: We are making a NEW thread
+        postData.subject = document.getElementById('subjectInput').value; // Add subject only for threads
+        database.ref('boards/myvt/threads').push(postData);
     }
 
-    // Firebase returns an object of objects. We want an array to sort.
-    // We reverse it to show newest threads at top (standard imageboard style)
-    const postsArray = Object.entries(data).reverse();
-
-    postsArray.forEach(([id, post]) => {
-        renderPost(id, post);
-    });
+    // Clear form
+    document.getElementById('commentInput').value = "";
+    document.getElementById('imageInput').value = "";
+    document.getElementById('subjectInput').value = "";
 });
 
-// --- STEP 5: RENDER HTML ---
-function renderPost(id, post) {
-    // Format Date
-    const date = new Date(post.timestamp).toLocaleString();
-    
-    // Check if there is an image
-    let imageHtml = "";
-    if (post.image) {
-        imageHtml = `<a href="${post.image}" target="_blank">
-                        <img src="${post.image}" class="thread-image">
-                     </a>`;
-    }
-
-    // Build the HTML
-    const html = `
-    <div class="thread" id="${id}">
-        <div class="post-info">
-            <span class="subject">${post.subject || ""}</span> 
-            <span class="name">${post.name}</span> 
-            <span class="time">${date}</span>
-            <span class="post-id">No. ${id.substring(1,8)}</span> <!-- Fake ID -->
-        </div>
-        <br>
-        ${imageHtml}
-        <blockquote class="comment">${escapeHtml(post.comment)}</blockquote>
-    </div>`;
-
-    container.innerHTML += html;
+// --- HELPER FUNCTIONS ---
+function renderImage(url) {
+    if (!url) return "";
+    return `<a href="${url}" target="_blank"><img src="${url}" class="thread-image"></a>`;
 }
 
-// Security: Prevent HTML injection (XSS)
 function escapeHtml(text) {
-    if (!text) return text;
-    return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    if (!text) return "";
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

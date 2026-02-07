@@ -6,7 +6,7 @@
     <title>myvt - Malaysian VTuber Imageboard</title>
     <link rel="stylesheet" href="style.css">
     
-    <!-- FIREBASE SDK (Must be included) -->
+    <!-- FIREBASE SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
@@ -16,33 +16,37 @@
     <div class="header">
         <h1>/myvt/ - Malaysian Virtual Youtubers</h1>
         <div class="nav">
-            [ <a href="#">Home</a> ] 
-            [ <a href="#">Catalog</a> ] 
-            [ <a href="#">Bottom</a> ]
+            [ <a href="#" onclick="window.location.hash=''; return false;">Home</a> ] 
+            [ <a href="#catalog">Catalog</a> ] 
+            [ <a href="#bottom">Bottom</a> ]
         </div>
     </div>
 
-    <!-- POST FORM -->
+    <!-- POST FORM (Dynamic) -->
     <div class="post-box">
-        <div class="form-header">Create New Thread</div>
+        <div class="form-header" id="formTitle">Create New Thread</div>
         <form id="postForm">
             <input type="text" id="nameInput" placeholder="Name (Anonymous)" value="Anonymous">
             <input type="text" id="subjectInput" placeholder="Subject">
             <textarea id="commentInput" placeholder="Comment" required></textarea>
-            
-            <!-- For the MVP, we use Image URL to save backend complexity -->
             <input type="url" id="imageInput" placeholder="Image URL (e.g. https://imgur.com/example.jpg)">
             
-            <button type="submit">Post</button>
+            <button type="submit">Submit</button>
         </form>
     </div>
 
     <hr>
 
-    <!-- THREADS CONTAINER -->
-    <div id="boardContainer">
-        <!-- Javascript will inject threads here -->
-        <div class="loading">Loading /myvt/...</div>
+    <!-- VIEW 1: BOARD INDEX (List of Threads) -->
+    <div id="boardView">
+        <div id="threadList"></div>
+    </div>
+
+    <!-- VIEW 2: SINGLE THREAD (OP + Replies) -->
+    <div id="threadView" style="display:none;">
+        <div class="back-link">[ <a href="#" onclick="window.location.hash=''; return false;">Return to Board</a> ]</div>
+        <div id="opContainer"></div> <!-- The Main Post goes here -->
+        <div id="repliesContainer"></div> <!-- The Replies go here -->
     </div>
 
     <script src="script.js"></script>
