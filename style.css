@@ -101,3 +101,31 @@ textarea { height: 80px; resize: vertical; }
     box-shadow: 0 0 20px black;
     cursor: pointer;
 }
+
+/* QUOTING STYLES */
+.quote-link {
+    color: #d00;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.backlink-container {
+    font-size: 0.8em;
+    margin-top: 5px;
+    color: #dd0000;
+}
+
+.backlink {
+    color: #dd0000;
+    text-decoration: underline;
+    margin-right: 5px;
+}
+
+/* Make the Post Number clickable and look active */
+.post-id {
+    color: #555;
+    cursor: pointer;
+}
+.post-id:hover {
+    color: #d00;
+}
