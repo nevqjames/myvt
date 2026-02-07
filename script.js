@@ -60,6 +60,10 @@ window.addEventListener('load', router);
 
 function router() {
     const hash = window.location.hash;
+
+    // NEW: If the user clicked "Bottom", do nothing and let the HTML anchor handle it
+    if (hash === "#bottom") return; 
+
     if (hash.startsWith("#thread_")) {
         const id = hash.replace("#thread_", "");
         currentThreadId = id;

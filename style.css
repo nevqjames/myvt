@@ -1,3 +1,7 @@
+html {
+    scroll-behavior: smooth;
+}
+
 /* RESET & BASIC */
 body {
     background-color: #ffe; /* Classic pale yellow */
