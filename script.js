@@ -1,6 +1,4 @@
 // --- STEP 1: CONFIGURATION ---
-// Go to https://console.firebase.google.com/
-// Create a new project -> Add Web App -> Copy config here
 const firebaseConfig = {
   apiKey: "AIzaSyB-34VVrHjdEnDPDc6rDsBKUA8wLImF2bw",
   authDomain: "myvt-board.firebaseapp.com",
@@ -10,6 +8,7 @@ const firebaseConfig = {
   messagingSenderId: "609061476847",
   appId: "1:609061476847:web:85841c6f06a7ff6d8e7e1a",
   measurementId: "G-7TF8SF89DE"
+}; // <--- FIXED: Closed the object here
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
