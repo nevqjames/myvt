@@ -32,7 +32,6 @@ function router() {
 }
 
 // --- 2. VIEW LOGIC ---
-
 function loadBoardView() {
     document.getElementById('boardView').style.display = "block";
     document.getElementById('threadView').style.display = "none";
@@ -41,21 +40,17 @@ function loadBoardView() {
 
     const listRef = database.ref('boards/myvt/threads');
     
-    // NEW: sort by 'lastUpdated' instead of default key
     listRef.orderByChild('lastUpdated').limitToLast(20).on('value', (snapshot) => {
         const div = document.getElementById('threadList');
         div.innerHTML = "";
         const data = snapshot.val();
         if (!data) return;
 
-        // Firebase sorts Ascending (Oldest at bottom). 
-        // We want Descending (Newest at top).
-        // So we create an array and REVERSE it.
         const sortedThreads = [];
         snapshot.forEach((childSnap) => {
             sortedThreads.push({ id: childSnap.key, ...childSnap.val() });
         });
-        sortedThreads.reverse(); // Now newest bumped threads are at [0]
+        sortedThreads.reverse();
 
         sortedThreads.forEach((thread) => {
             div.innerHTML += `
@@ -79,10 +74,9 @@ function loadThreadView(threadId) {
     document.getElementById('formTitle').innerText = "Reply to Thread " + threadId.substring(0,6);
     document.getElementById('subjectInput').style.display = "none";
 
-    // Load OP
     database.ref('boards/myvt/threads/' + threadId).once('value').then((snap) => {
         const op = snap.val();
-        if(!op) return; // Handle if thread was deleted
+        if(!op) return;
         
         document.getElementById('opContainer').innerHTML = `
             <div class="thread-card">
@@ -97,7 +91,6 @@ function loadThreadView(threadId) {
             </div>`;
     });
 
-    // Load Replies
     database.ref('boards/myvt/threads/' + threadId + '/replies').on('value', (snapshot) => {
         const div = document.getElementById('repliesContainer');
         div.innerHTML = "";
@@ -130,8 +123,16 @@ document.getElementById('postForm').addEventListener('submit', function(e) {
     
     if (!comment) return alert("Comment is required");
 
-    const now = Date.now();
+    // VALIDATION: Check Image Extension
+    if (image) {
+        // Regex to check if end of string matches allowed extensions
+        const allowedExtensions = /(\.jpg|\.jpeg|\.png|\.gif|\.webp)$/i;
+        if (!allowedExtensions.exec(image)) {
+            return alert("Invalid Image! URL must end in .jpg, .png, .gif, or .webp");
+        }
+    }
 
+    const now = Date.now();
     const postData = {
         name: name,
         comment: comment,
@@ -140,39 +141,45 @@ document.getElementById('postForm').addEventListener('submit', function(e) {
     };
 
     if (currentThreadId) {
-        // CASE A: REPLYING (Bump Logic)
-        
-        // 1. Push the reply
         database.ref('boards/myvt/threads/' + currentThreadId + '/replies').push(postData);
-        
-        // 2. NEW: Update the PARENT thread's 'lastUpdated' time
-        database.ref('boards/myvt/threads/' + currentThreadId).update({
-            lastUpdated: now
-        });
-
+        database.ref('boards/myvt/threads/' + currentThreadId).update({ lastUpdated: now });
     } else {
-        // CASE B: NEW THREAD
         postData.subject = document.getElementById('subjectInput').value;
-        postData.lastUpdated = now; // NEW: Initialize lastUpdated
-        
+        postData.lastUpdated = now;
         database.ref('boards/myvt/threads').push(postData);
     }
 
-    // Clear form
     document.getElementById('commentInput').value = "";
     document.getElementById('imageInput').value = "";
     document.getElementById('subjectInput').value = "";
     
-    // If we made a new thread, reload to see it
     if (!currentThreadId) {
         setTimeout(() => loadBoardView(), 500); 
     }
 });
 
-// --- HELPER FUNCTIONS ---
+// --- 4. LIGHTBOX & HELPER FUNCTIONS ---
+
+// Modified Render Function for Lightbox
 function renderImage(url) {
     if (!url) return "";
-    return `<a href="${url}" target="_blank"><img src="${url}" class="thread-image"></a>`;
+    // Note: onclick calls openLightbox with the URL
+    return `<img src="${url}" class="thread-image" onclick="openLightbox('${url}')">`;
+}
+
+// Open the overlay
+function openLightbox(url) {
+    const lb = document.getElementById('lightbox');
+    const img = document.getElementById('lightboxImg');
+    
+    img.src = url; // Set the big image
+    lb.style.display = 'flex'; // Show the overlay
+}
+
+// Close the overlay
+function closeLightbox() {
+    document.getElementById('lightbox').style.display = 'none';
+    document.getElementById('lightboxImg').src = ""; // Clear src to stop memory leaks
 }
 
 function escapeHtml(text) {
