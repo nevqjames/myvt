@@ -43,6 +43,15 @@ if (!currentBoard || !BOARDS[currentBoard]) {
     currentBoard = 'myvt';
 }
 
+// --- AUTO-NIGHT MODE FOR NSFW ---
+const currentType = BOARDS[currentBoard].type; // 'sfw' or 'nsfw'
+
+if (currentType === 'nsfw') {
+    document.body.classList.add('night-mode');
+} else {
+    document.body.classList.remove('night-mode');
+}
+
 // Set Page Title
 document.title = BOARDS[currentBoard].title;
 
@@ -434,3 +443,4 @@ document.getElementById('postForm').addEventListener('submit', async function(e)
         btn.innerText = oldText;
     }
 });
+
