@@ -301,12 +301,15 @@ function renderReply(id, data, threadId) {
 
 function getMediaType(url) {
     if (!url) return null;
-    // 1. YouTube
-    const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    
+    // 1. YouTube (Now supports /live/, /shorts/, /embed/, /v/, and standard)
+    const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|live|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
     const ytMatch = url.match(ytRegex);
     if (ytMatch) return { type: 'youtube', id: ytMatch[1] };
+
     // 2. Direct Video (MP4/WebM)
     if (url.match(/\.(mp4|webm|ogg)$/i)) return { type: 'video', url: url };
+    
     // 3. Image (Default)
     return { type: 'image', url: url };
 }
@@ -428,8 +431,8 @@ function validateMediaUrl(url) {
     return new Promise((resolve) => {
         if (!url) { resolve(true); return; }
 
-        // 1. Check YouTube Regex
-        const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+        // 1. Check YouTube Regex (Live, Shorts, VOD, Standard)
+        const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|live|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
         if (url.match(ytRegex)) { resolve(true); return; }
 
         // 2. Check Video Extension
