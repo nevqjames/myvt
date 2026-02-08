@@ -44,8 +44,8 @@ if (isLocal) {
 const BOARDS = {
     // === SFW (Surface) ===
     'myvt':  { title: '/myvt/ - Malaysian Virtual Youtubers', type: 'sfw' },
-    'vt':    { title: '/vt/ - Global & SEA VTubers',         type: 'sfw' },
-    'v':     { title: '/v/ - Virtual Gaming',                type: 'sfw' },
+    'vt':    { title: '/vt/ - Global & SEA VTubers',          type: 'sfw' },
+    'vg':    { title: '/vg/ - Video Games',                  type: 'sfw' },
     'acg':   { title: '/acg/ - Anime & Events',              type: 'sfw' },
     'art':   { title: '/art/ - Fanart & Assets',             type: 'sfw' },
     'tech':  { title: '/tech/ - Rigging & Streaming',        type: 'sfw' },
