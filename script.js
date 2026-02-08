@@ -43,17 +43,15 @@ if (!currentBoard || !BOARDS[currentBoard]) {
     currentBoard = 'myvt';
 }
 
-// --- AUTO-NIGHT MODE FOR NSFW ---
-const currentType = BOARDS[currentBoard].type; // 'sfw' or 'nsfw'
+// Set Page Title
+document.title = BOARDS[currentBoard].title;
 
-if (currentType === 'nsfw') {
+// Auto-Night Mode for NSFW Boards
+if (BOARDS[currentBoard].type === 'nsfw') {
     document.body.classList.add('night-mode');
 } else {
     document.body.classList.remove('night-mode');
 }
-
-// Set Page Title
-document.title = BOARDS[currentBoard].title;
 
 // Helper: Get Database Reference for current board
 function getBoardRef() {
@@ -73,6 +71,11 @@ function loadAdminScript(password) {
     script.onload = function() {
         console.log("Admin module loaded.");
         localStorage.setItem('adminKey', password); // Save session
+        isModMode = true;
+        document.body.classList.add('mod-mode-active');
+        // Reload views to show delete buttons
+        if(currentThreadId) loadThreadView(currentThreadId);
+        else loadBoardView();
     };
 
     script.onerror = function() {
@@ -125,7 +128,7 @@ window.addEventListener('DOMContentLoaded', () => {
     
     for (const [key, data] of Object.entries(BOARDS)) {
         if (data.type === currentType) {
-            const isActive = (key === currentBoard) ? 'style="font-weight:bold; color:#000;"' : '';
+            const isActive = (key === currentBoard) ? 'style="font-weight:bold; color:inherit;"' : '';
             html += `[ <a href="?b=${key}" ${isActive}>/${key}/</a> ] `;
         }
     }
@@ -253,12 +256,12 @@ function renderThreadCard(id, data, isPreview) {
     // IP hidden unless Mod
     const ipHtml = isModMode ? `<span style="color: blue; font-weight:bold;"> [IP: ${data.ip || '?'}]</span>` : "";
     
-    // Delete Button (Only active if mod script loaded)
+    // Delete Button (function must be defined in admin script)
     const delBtn = isModMode ? `<span class="admin-delete-btn" onclick="deleteThread('${id}')">[Delete Thread]</span>` : "";
 
     return `
     <div class="thread-card" id="post_${id}">
-        ${renderImage(data.image)}
+        ${renderMedia(data.image)}
         <div class="post-info">
             <span class="subject">${data.subject || ""}</span>
             <span class="name">${data.name}</span>
@@ -286,14 +289,88 @@ function renderReply(id, data, threadId) {
             ${delBtn}
         </div>
         <br>
-        ${renderImage(data.image)}
+        ${renderMedia(data.image)}
         <blockquote class="comment">${formatComment(data.comment)}</blockquote>
         <div class="backlink-container" id="backlinks_${id}"></div>
     </div>`;
 }
 
 // ==========================================
-// 6. FORMATTING, QUOTES & IMAGES
+// 6. MEDIA HANDLING (YOUTUBE / VIDEO / IMG)
+// ==========================================
+
+function getMediaType(url) {
+    if (!url) return null;
+    // 1. YouTube
+    const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    const ytMatch = url.match(ytRegex);
+    if (ytMatch) return { type: 'youtube', id: ytMatch[1] };
+    // 2. Direct Video (MP4/WebM)
+    if (url.match(/\.(mp4|webm|ogg)$/i)) return { type: 'video', url: url };
+    // 3. Image (Default)
+    return { type: 'image', url: url };
+}
+
+function renderMedia(url) {
+    if (!url) return "";
+    const media = getMediaType(url);
+
+    if (media.type === 'youtube') {
+        const thumbUrl = `https://img.youtube.com/vi/${media.id}/0.jpg`;
+        return `
+        <div class="media-container" onclick="openLightbox('youtube', '${media.id}')">
+            <img src="${thumbUrl}" style="max-width:200px; max-height:200px;">
+            <div class="play-overlay">▶</div>
+        </div>`;
+    } 
+    else if (media.type === 'video') {
+        return `
+        <div class="media-container file-placeholder" onclick="openLightbox('video', '${media.url}')">
+            <div class="file-ext">VIDEO</div>
+            <div>Click to Play</div>
+        </div>`;
+    } 
+    else {
+        return `<img src="${url}" class="thread-image" onclick="openLightbox('image', '${url}')">`;
+    }
+}
+
+function openLightbox(type, content) {
+    const lb = document.getElementById('lightbox');
+    const img = document.getElementById('lbImg');
+    const vid = document.getElementById('lbVideo');
+    const frame = document.getElementById('lbFrame');
+
+    // Reset display
+    img.style.display = 'none'; img.src = "";
+    vid.style.display = 'none'; vid.src = "";
+    frame.style.display = 'none'; frame.src = "";
+
+    if (type === 'image') {
+        img.src = content;
+        img.style.display = 'block';
+    } else if (type === 'video') {
+        vid.src = content;
+        vid.style.display = 'block';
+    } else if (type === 'youtube') {
+        frame.src = `https://www.youtube.com/embed/${content}?autoplay=1`;
+        frame.style.display = 'block';
+    }
+    lb.style.display = 'flex';
+}
+
+function closeLightbox(e) {
+    // Only close if clicking background, not content
+    if (e.target.id === 'lightbox' || e.target.id === 'lightboxContent') {
+        document.getElementById('lightbox').style.display = 'none';
+        document.getElementById('lbVideo').pause();
+        document.getElementById('lbVideo').src = "";
+        document.getElementById('lbFrame').src = "";
+    }
+}
+
+// ==========================================
+// 7. FORMATTING, QUOTES & BACKLINKS
 // ==========================================
 
 function formatComment(text) {
@@ -315,30 +392,22 @@ function quotePost(id) {
     const box = document.getElementById('commentInput');
     box.value += `>>${id}\n`;
     box.focus();
-    // Scroll to form if inside thread
     if(currentThreadId) document.getElementById('postForm').scrollIntoView();
 }
 
 function generateBacklinks() {
-    // Clear old links
     document.querySelectorAll('.backlink-container').forEach(el => el.innerHTML = "");
-    
     const allComments = document.querySelectorAll('.comment');
     allComments.forEach(commentDiv => {
-        // Who is replying?
         const replierDiv = commentDiv.closest('[id^="post_"]'); 
         if (!replierDiv) return;
         const replierId = replierDiv.id.replace("post_", "");
-        
-        // Who are they quoting?
         const links = commentDiv.querySelectorAll('.quote-link');
         links.forEach(link => {
             const href = link.getAttribute('href');
             if(!href) return;
             const targetId = href.replace("#post_", "");
-            
             const container = document.getElementById('backlinks_' + targetId);
-            // Limit to 10 backlinks per post
             if (container && container.childElementCount < 10) {
                 container.innerHTML += `<a href="#post_${replierId}" class="backlink" onmouseenter="highlightPost('${replierId}')" onmouseleave="unhighlightPost('${replierId}')">&gt;&gt;${replierId.substring(1,8)}</a>`;
             }
@@ -348,29 +417,25 @@ function generateBacklinks() {
 
 function highlightPost(id) { const el = document.getElementById('post_'+id); if(el) el.style.background = "#f5c0c0"; }
 function unhighlightPost(id) { const el = document.getElementById('post_'+id); if(el) el.style.background = ""; }
+function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
 
-function renderImage(url) { 
-    return url ? `<img src="${url}" class="thread-image" onclick="openLightbox('${url}')">` : ""; 
-}
-function openLightbox(url) { 
-    document.getElementById('lightboxImg').src = url; 
-    document.getElementById('lightbox').style.display = 'flex'; 
-}
-function closeLightbox() { 
-    document.getElementById('lightbox').style.display = 'none'; 
-}
-function escapeHtml(t) { 
-    return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; 
-}
 
 // ==========================================
-// 7. SUBMIT LOGIC (VALIDATION + IP)
+// 8. SUBMIT LOGIC (SMART MEDIA + IP)
 // ==========================================
 
-// Helper: Check if URL loads an image
-function validateImageUrl(url) {
+function validateMediaUrl(url) {
     return new Promise((resolve) => {
         if (!url) { resolve(true); return; }
+
+        // 1. Check YouTube Regex
+        const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+        if (url.match(ytRegex)) { resolve(true); return; }
+
+        // 2. Check Video Extension
+        if (url.match(/\.(mp4|webm|ogg)$/i)) { resolve(true); return; }
+
+        // 3. Fallback: Check if Image
         const img = new Image();
         img.onload = () => resolve(true);
         img.onerror = () => resolve(false);
@@ -394,11 +459,11 @@ document.getElementById('postForm').addEventListener('submit', async function(e)
     btn.disabled = true;
     btn.innerText = "Processing...";
 
-    // 1. Validate Image
+    // 1. Validate Media
     if (image) {
-        const isValid = await validateImageUrl(image);
+        const isValid = await validateMediaUrl(image);
         if (!isValid) {
-            alert("Invalid Image URL (Must be a direct link to JPG/PNG/GIF).");
+            alert("Invalid Media URL! Must be an Image, MP4/WebM, or YouTube link.");
             btn.disabled = false;
             btn.innerText = oldText;
             return;
@@ -443,4 +508,3 @@ document.getElementById('postForm').addEventListener('submit', async function(e)
         btn.innerText = oldText;
     }
 });
-

@@ -33,7 +33,7 @@
             <input type="text" id="nameInput" placeholder="Name (Anonymous)" value="Anonymous">
             <input type="text" id="subjectInput" placeholder="Subject">
             <textarea id="commentInput" placeholder="Comment" required></textarea>
-            <input type="url" id="imageInput" placeholder="Image URL (e.g. https://imgur.com/example.jpg)">
+            <input type="url" id="imageInput" placeholder="Media URL (e.g. https://imgur.com/example.jpg, or https://youtu.be/url)">
             
             <button type="submit">Submit</button>
         </form>
@@ -53,9 +53,14 @@
         <div id="repliesContainer"></div> <!-- The Replies go here -->
     </div>
 
-    <!-- LIGHTBOX OVERLAY (Hidden by default) -->
-    <div id="lightbox" onclick="closeLightbox()">
-        <img id="lightboxImg" src="">
+    <!-- LIGHTBOX OVERLAY -->
+    <div id="lightbox" onclick="closeLightbox(event)">
+        <!-- Container to center content -->
+        <div id="lightboxContent">
+            <img id="lbImg" style="display:none">
+            <video id="lbVideo" controls style="display:none"></video>
+            <iframe id="lbFrame" frameborder="0" allowfullscreen style="display:none"></iframe>
+        </div>
     </div>
 
     <!-- ADD THIS LINE HERE -->

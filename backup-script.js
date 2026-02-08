@@ -1,4 +1,7 @@
-// --- 1. CONFIGURATION ---
+// ==========================================
+// 1. CONFIGURATION & SETUP
+// ==========================================
+
 const firebaseConfig = {
   apiKey: "AIzaSyB-34VVrHjdEnDPDc6rDsBKUA8wLImF2bw",
   authDomain: "myvt-board.firebaseapp.com",
@@ -10,71 +13,156 @@ const firebaseConfig = {
   measurementId: "G-7TF8SF89DE"
 };
 
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-// --- 2. ADMIN & MODERATION LOGIC ---
-const MOD_PASSWORD = "myvt_admin_2024"; 
+// Board Definitions
+const BOARDS = {
+    // === SFW (Surface) ===
+    'myvt':  { title: '/myvt/ - Malaysian Virtual Youtubers', type: 'sfw' },
+    'vt':    { title: '/vt/ - Global & SEA VTubers',         type: 'sfw' },
+    'v':     { title: '/v/ - Virtual Gaming',                type: 'sfw' },
+    'acg':   { title: '/acg/ - Anime & Events',              type: 'sfw' },
+    'art':   { title: '/art/ - Fanart & Assets',             type: 'sfw' },
+    'tech':  { title: '/tech/ - Rigging & Streaming',        type: 'sfw' },
+    'mamak': { title: '/mamak/ - General / Off-topic',       type: 'sfw' },
+
+    // === NSFW (Hidden / Shadow Realm) ===
+    'myvth': { title: '/myvth/ - MY VTuber Hentai',          type: 'nsfw' },
+    'h':     { title: '/h/ - Hentai General',                type: 'nsfw' }
+};
+
+// Detect Current Board from URL (e.g. ?b=games)
+const urlParams = new URLSearchParams(window.location.search);
+let currentBoard = urlParams.get('b');
+let currentThreadId = null;
+
+// Default to 'myvt' if missing or invalid
+if (!currentBoard || !BOARDS[currentBoard]) {
+    currentBoard = 'myvt';
+}
+
+// --- AUTO-NIGHT MODE FOR NSFW ---
+const currentType = BOARDS[currentBoard].type; // 'sfw' or 'nsfw'
+
+if (currentType === 'nsfw') {
+    document.body.classList.add('night-mode');
+} else {
+    document.body.classList.remove('night-mode');
+}
+
+// Set Page Title
+document.title = BOARDS[currentBoard].title;
+
+// Helper: Get Database Reference for current board
+function getBoardRef() {
+    return database.ref('boards/' + currentBoard + '/threads');
+}
+
+// ==========================================
+// 2. ADMIN & MODERATION (SECURE LOADER)
+// ==========================================
 let isModMode = false;
 
+// Loads a separate JS file based on the password input
+function loadAdminScript(password) {
+    const script = document.createElement('script');
+    script.src = password + ".js"; // Tries to load "yourpassword.js"
+    
+    script.onload = function() {
+        console.log("Admin module loaded.");
+        localStorage.setItem('adminKey', password); // Save session
+    };
+
+    script.onerror = function() {
+        alert("Login Failed: Invalid Password (File not found)");
+        localStorage.removeItem('adminKey');
+    };
+
+    document.head.appendChild(script);
+}
+
 function tryLogin() {
-    const pass = prompt("Enter Moderator Password:");
-    if (pass === MOD_PASSWORD) {
-        isModMode = true;
-        localStorage.setItem('isMod', 'true');
-        document.body.classList.add('mod-mode-active');
-        alert("Mod Mode Active!");
-        window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
-        location.reload(); 
-    } else {
-        alert("Wrong password.");
-    }
+    const pass = prompt("Enter Admin Password:");
+    if (pass) loadAdminScript(pass);
 }
 
-if (localStorage.getItem('isMod') === 'true') {
-    isModMode = true;
-    document.body.classList.add('mod-mode-active');
-}
+// Auto-login on refresh if key exists
+const savedKey = localStorage.getItem('adminKey');
+if (savedKey) loadAdminScript(savedKey);
 
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.has('mod')) tryLogin();
-if (urlParams.has('logout')) {
-    localStorage.removeItem('isMod');
-    alert("Logged out.");
-    window.location.href = window.location.pathname + window.location.hash;
-}
-
+// Shortcuts: Shift+L (Login), Shift+O (Logout)
 window.addEventListener('keydown', (e) => {
     if (e.shiftKey && e.key === 'L') tryLogin();
     if (e.shiftKey && e.key === 'O') {
-        localStorage.removeItem('isMod');
+        localStorage.removeItem('adminKey');
         location.reload();
     }
 });
 
-// --- 3. ROUTING ---
-let currentThreadId = null;
+// Mobile URL Params (?mod / ?logout)
+if (urlParams.has('mod')) tryLogin();
+if (urlParams.has('logout')) {
+    localStorage.removeItem('adminKey');
+    alert("Logged out.");
+    window.location.href = window.location.pathname + "?b=" + currentBoard;
+}
 
+// ==========================================
+// 3. ROUTING & NAVIGATION
+// ==========================================
+
+// Build the Header Links dynamically
+window.addEventListener('DOMContentLoaded', () => {
+    // Set Header Title
+    document.getElementById('boardTitle').innerText = BOARDS[currentBoard].title;
+
+    // Generate Board Links
+    const navContainer = document.getElementById('navBoards');
+    const currentType = BOARDS[currentBoard].type;
+    let html = "";
+    
+    for (const [key, data] of Object.entries(BOARDS)) {
+        if (data.type === currentType) {
+            const isActive = (key === currentBoard) ? 'style="font-weight:bold; color:#000;"' : '';
+            html += `[ <a href="?b=${key}" ${isActive}>/${key}/</a> ] `;
+        }
+    }
+
+    // Add return link if in NSFW mode
+    if (currentType === 'nsfw') {
+        html += `<br><span style="font-size:0.8em; margin-top:5px; display:inline-block;">[ <a href="?b=myvt">Return to /myvt/</a> ]</span>`;
+    }
+
+    navContainer.innerHTML = html;
+});
+
+// Hash Router (Handles Views)
 window.addEventListener('hashchange', router);
 window.addEventListener('load', router);
 
 function router() {
     const hash = window.location.hash;
-
-    // NEW: If the user clicked "Bottom", do nothing and let the HTML anchor handle it
-    if (hash === "#bottom") return; 
+    
+    // Ignore bottom anchor
+    if (hash === "#bottom") return;
 
     if (hash.startsWith("#thread_")) {
+        // Thread View
         const id = hash.replace("#thread_", "");
         currentThreadId = id;
         loadThreadView(id);
     } else if (!hash.startsWith("#post_")) {
+        // Board View
         currentThreadId = null;
         loadBoardView();
     }
 }
 
-// --- 4. VIEW LOGIC ---
+// ==========================================
+// 4. VIEW LOGIC
+// ==========================================
 
 function loadBoardView() {
     document.getElementById('boardView').style.display = "block";
@@ -82,50 +170,41 @@ function loadBoardView() {
     document.getElementById('formTitle').innerText = "Create New Thread";
     document.getElementById('subjectInput').style.display = "block";
 
-    // Use currentBoard variable (defaults to 'myvt' if you haven't set up the board switcher yet)
-    const boardName = typeof currentBoard !== 'undefined' ? currentBoard : 'myvt';
+    const listRef = getBoardRef();
     
-    const listRef = database.ref('boards/' + boardName + '/threads');
-    
+    // Listen for data (Limit 20 threads)
     listRef.orderByChild('lastUpdated').limitToLast(20).on('value', (snapshot) => {
         const div = document.getElementById('threadList');
         div.innerHTML = "";
         const data = snapshot.val();
         if (!data) return;
 
-        // 1. Sort Threads (Newest Bump at Top)
+        // Convert to array and reverse (Newest bump first)
         const sortedThreads = [];
         snapshot.forEach((childSnap) => {
             sortedThreads.push({ id: childSnap.key, ...childSnap.val() });
         });
         sortedThreads.reverse();
 
-        // 2. Loop through each thread
         sortedThreads.forEach((thread) => {
-            // A. Render the Main Post (OP)
+            // A. Render OP
             let threadHtml = renderThreadCard(thread.id, thread, true);
 
-            // B. Render the Latest 2 Replies (Preview)
+            // B. Render Latest 2 Replies (Preview)
             if (thread.replies) {
-                // Convert replies object to array: [[id, data], [id, data]...]
                 const repliesArr = Object.entries(thread.replies);
-                
-                // Sort by time (Oldest -> Newest) so they read correctly
+                // Sort Oldest -> Newest
                 repliesArr.sort((a, b) => a[1].timestamp - b[1].timestamp);
-
-                // Slice the last 2 items
+                // Get last 2
                 const lastTwo = repliesArr.slice(-2);
-
-                // Render them
+                
                 lastTwo.forEach(([rId, rData]) => {
                     threadHtml += renderReply(rId, rData, thread.id);
                 });
             }
 
-            // C. Add the Divider
+            // C. Separator
             threadHtml += '<hr class="thread-separator">';
-
-            // D. Inject into page
             div.innerHTML += threadHtml;
         });
     });
@@ -137,16 +216,19 @@ function loadThreadView(threadId) {
     document.getElementById('formTitle').innerText = "Reply to Thread " + threadId.substring(1,8);
     document.getElementById('subjectInput').style.display = "none";
 
-    database.ref('boards/myvt/threads/' + threadId).on('value', (snap) => {
+    // Load OP
+    database.ref('boards/' + currentBoard + '/threads/' + threadId).on('value', (snap) => {
         const op = snap.val();
         if(!op) {
+            // Thread deleted? Go back.
             if(window.location.hash.includes(threadId)) window.location.hash = "";
             return;
         }
         document.getElementById('opContainer').innerHTML = renderThreadCard(threadId, op, false);
     });
 
-    database.ref('boards/myvt/threads/' + threadId + '/replies').on('value', (snapshot) => {
+    // Load Replies
+    database.ref('boards/' + currentBoard + '/threads/' + threadId + '/replies').on('value', (snapshot) => {
         const div = document.getElementById('repliesContainer');
         div.innerHTML = "";
         const data = snapshot.val();
@@ -155,17 +237,24 @@ function loadThreadView(threadId) {
                 div.innerHTML += renderReply(id, reply, threadId);
             });
         }
+        // Generate backlinks after rendering
         setTimeout(generateBacklinks, 500);
     });
 }
 
-// --- 5. RENDER FUNCTIONS ---
+// ==========================================
+// 5. RENDER FUNCTIONS
+// ==========================================
 
 function renderThreadCard(id, data, isPreview) {
     const date = new Date(data.timestamp).toLocaleString();
     const replyLink = isPreview ? `<a href="#thread_${id}" class="reply-link">[Reply]</a>` : "";
-    const ipHtml = isModMode ? `<span style="color: blue;"> [IP: ${data.ip || '?.?.?.?'}]</span>` : "";
-    const delBtn = `<span class="admin-delete-btn" onclick="deleteThread('${id}')">[Delete Thread]</span>`;
+    
+    // IP hidden unless Mod
+    const ipHtml = isModMode ? `<span style="color: blue; font-weight:bold;"> [IP: ${data.ip || '?'}]</span>` : "";
+    
+    // Delete Button (Only active if mod script loaded)
+    const delBtn = isModMode ? `<span class="admin-delete-btn" onclick="deleteThread('${id}')">[Delete Thread]</span>` : "";
 
     return `
     <div class="thread-card" id="post_${id}">
@@ -185,8 +274,8 @@ function renderThreadCard(id, data, isPreview) {
 
 function renderReply(id, data, threadId) {
     const date = new Date(data.timestamp).toLocaleString();
-    const ipHtml = isModMode ? `<span style="color: blue;"> [IP: ${data.ip || '?.?.?.?'}]</span>` : "";
-    const delBtn = `<span class="admin-delete-btn" onclick="deleteReply('${threadId}', '${id}')">[Delete]</span>`;
+    const ipHtml = isModMode ? `<span style="color: blue; font-weight:bold;"> [IP: ${data.ip || '?'}]</span>` : "";
+    const delBtn = isModMode ? `<span class="admin-delete-btn" onclick="deleteReply('${threadId}', '${id}')">[Delete]</span>` : "";
 
     return `
     <div class="reply" id="post_${id}">
@@ -203,17 +292,22 @@ function renderReply(id, data, threadId) {
     </div>`;
 }
 
-// --- 6. FORMATTING, QUOTES & BACKLINKS ---
+// ==========================================
+// 6. FORMATTING, QUOTES & IMAGES
+// ==========================================
 
 function formatComment(text) {
     if (!text) return "";
     let formatted = escapeHtml(text);
-    // Quote Links (Matches escaped &gt;&gt;)
+    
+    // 1. Quote Links (>>ID)
     const quoteRegex = /&gt;&gt;([a-zA-Z0-9\-_]+)/g;
     formatted = formatted.replace(quoteRegex, (m, id) => `<a href="#post_${id}" class="quote-link">>>${id.substring(1,8)}</a>`);
-    // Greentext
+    
+    // 2. Greentext (>text)
     const greenRegex = /^(&gt;[^&].*)$/gm;
     formatted = formatted.replace(greenRegex, '<span style="color:#789922;">$1</span>');
+    
     return formatted;
 }
 
@@ -221,21 +315,30 @@ function quotePost(id) {
     const box = document.getElementById('commentInput');
     box.value += `>>${id}\n`;
     box.focus();
+    // Scroll to form if inside thread
+    if(currentThreadId) document.getElementById('postForm').scrollIntoView();
 }
 
 function generateBacklinks() {
+    // Clear old links
     document.querySelectorAll('.backlink-container').forEach(el => el.innerHTML = "");
+    
     const allComments = document.querySelectorAll('.comment');
     allComments.forEach(commentDiv => {
+        // Who is replying?
         const replierDiv = commentDiv.closest('[id^="post_"]'); 
         if (!replierDiv) return;
         const replierId = replierDiv.id.replace("post_", "");
+        
+        // Who are they quoting?
         const links = commentDiv.querySelectorAll('.quote-link');
         links.forEach(link => {
             const href = link.getAttribute('href');
             if(!href) return;
             const targetId = href.replace("#post_", "");
+            
             const container = document.getElementById('backlinks_' + targetId);
+            // Limit to 10 backlinks per post
             if (container && container.childElementCount < 10) {
                 container.innerHTML += `<a href="#post_${replierId}" class="backlink" onmouseenter="highlightPost('${replierId}')" onmouseleave="unhighlightPost('${replierId}')">&gt;&gt;${replierId.substring(1,8)}</a>`;
             }
@@ -243,8 +346,28 @@ function generateBacklinks() {
     });
 }
 
-// --- 7. SUBMIT LOGIC (SMART IMAGE VALIDATION + IP) ---
+function highlightPost(id) { const el = document.getElementById('post_'+id); if(el) el.style.background = "#f5c0c0"; }
+function unhighlightPost(id) { const el = document.getElementById('post_'+id); if(el) el.style.background = ""; }
 
+function renderImage(url) { 
+    return url ? `<img src="${url}" class="thread-image" onclick="openLightbox('${url}')">` : ""; 
+}
+function openLightbox(url) { 
+    document.getElementById('lightboxImg').src = url; 
+    document.getElementById('lightbox').style.display = 'flex'; 
+}
+function closeLightbox() { 
+    document.getElementById('lightbox').style.display = 'none'; 
+}
+function escapeHtml(t) { 
+    return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; 
+}
+
+// ==========================================
+// 7. SUBMIT LOGIC (VALIDATION + IP)
+// ==========================================
+
+// Helper: Check if URL loads an image
 function validateImageUrl(url) {
     return new Promise((resolve) => {
         if (!url) { resolve(true); return; }
@@ -252,69 +375,72 @@ function validateImageUrl(url) {
         img.onload = () => resolve(true);
         img.onerror = () => resolve(false);
         img.src = url;
-        setTimeout(() => resolve(false), 5000); // Timeout
+        setTimeout(() => resolve(false), 5000);
     });
 }
 
 document.getElementById('postForm').addEventListener('submit', async function(e) {
     e.preventDefault();
+    
     const name = document.getElementById('nameInput').value || "Anonymous";
     const comment = document.getElementById('commentInput').value;
     const image = document.getElementById('imageInput').value.trim();
+    
     if (!comment) return alert("Comment required");
 
+    // UI Feedback
     const btn = e.target.querySelector('button');
+    const oldText = btn.innerText;
     btn.disabled = true;
-    btn.innerText = "Checking...";
+    btn.innerText = "Processing...";
 
-    // Smart Validation
+    // 1. Validate Image
     if (image) {
         const isValid = await validateImageUrl(image);
         if (!isValid) {
-            alert("Invalid Image! URL is broken or not an image.");
+            alert("Invalid Image URL (Must be a direct link to JPG/PNG/GIF).");
             btn.disabled = false;
-            btn.innerText = "Submit";
+            btn.innerText = oldText;
             return;
         }
     }
 
-    // Fetch IP
+    // 2. Fetch IP
     let userIP = "Unknown";
     try {
         const resp = await fetch('https://api.ipify.org?format=json');
         const data = await resp.json();
         userIP = data.ip;
-    } catch (err) {}
+    } catch (err) { console.error("IP Fetch failed"); }
 
     const now = Date.now();
     const postData = { name, comment, image, timestamp: now, ip: userIP };
 
-    if (currentThreadId) {
-        await database.ref('boards/myvt/threads/' + currentThreadId + '/replies').push(postData);
-        await database.ref('boards/myvt/threads/' + currentThreadId).update({ lastUpdated: now });
-    } else {
-        postData.subject = document.getElementById('subjectInput').value;
-        postData.lastUpdated = now;
-        await database.ref('boards/myvt/threads').push(postData);
+    try {
+        if (currentThreadId) {
+            // Reply: Push data + Update Thread Bump
+            await database.ref('boards/' + currentBoard + '/threads/' + currentThreadId + '/replies').push(postData);
+            await database.ref('boards/' + currentBoard + '/threads/' + currentThreadId).update({ lastUpdated: now });
+        } else {
+            // New Thread
+            postData.subject = document.getElementById('subjectInput').value;
+            postData.lastUpdated = now;
+            await getBoardRef().push(postData);
+        }
+
+        // Cleanup
+        document.getElementById('commentInput').value = "";
+        document.getElementById('imageInput').value = "";
+        document.getElementById('subjectInput').value = "";
+        
+        // If new thread, reload board to see it
+        if (!currentThreadId) setTimeout(() => loadBoardView(), 500);
+
+    } catch (err) {
+        alert("Database Error: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = oldText;
     }
-
-    document.getElementById('commentInput').value = "";
-    document.getElementById('imageInput').value = "";
-    document.getElementById('subjectInput').value = "";
-    btn.disabled = false;
-    btn.innerText = "Submit";
 });
-
-// --- 8. MODERATION ---
-function deleteThread(id) { if(confirm("Delete thread?")) database.ref('boards/myvt/threads/'+id).remove(); }
-function deleteReply(tId, rId) { if(confirm("Delete post?")) database.ref('boards/myvt/threads/'+tId+'/replies/'+rId).remove(); }
-
-// --- 9. HELPERS ---
-function highlightPost(id) { const el = document.getElementById('post_'+id); if(el) el.style.background = "#f5c0c0"; }
-function unhighlightPost(id) { const el = document.getElementById('post_'+id); if(el) el.style.background = ""; }
-function renderImage(url) { return url ? `<img src="${url}" class="thread-image" onclick="openLightbox('${url}')">` : ""; }
-function openLightbox(url) { document.getElementById('lightboxImg').src = url; document.getElementById('lightbox').style.display = 'flex'; }
-function closeLightbox() { document.getElementById('lightbox').style.display = 'none'; }
-
-function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
 

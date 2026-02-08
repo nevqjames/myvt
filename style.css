@@ -201,3 +201,69 @@ body.night-mode .thread-separator {
 body.night-mode .backlink {
     color: #ff8888;
 }
+
+/* LIGHTBOX UPGRADES */
+#lightboxContent {
+    max-width: 90%;
+    max-height: 90%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
+#lbVideo, #lbFrame {
+    max-width: 90vw;
+    max-height: 90vh;
+    box-shadow: 0 0 20px black;
+    background: black;
+}
+
+#lbFrame {
+    width: 800px; /* Default size for YouTube */
+    height: 450px;
+}
+
+/* MEDIA THUMBNAILS */
+.media-container {
+    float: left;
+    margin: 5px 20px 20px 5px;
+    position: relative;
+    cursor: pointer;
+    border: 2px solid #000055;
+}
+
+/* YouTube Play Button Overlay */
+.play-overlay {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.6);
+    color: white;
+    font-size: 30px;
+    width: 50px; height: 50px;
+    text-align: center;
+    line-height: 50px;
+    border-radius: 50%;
+    pointer-events: none; /* Let clicks pass through */
+}
+
+/* Direct File (MP4) Placeholder */
+.file-placeholder {
+    width: 200px;
+    height: 150px;
+    background: #000;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    text-align: center;
+}
+.file-ext {
+    font-weight: bold;
+    font-size: 24px;
+    color: #ffcc00;
+}
