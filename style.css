@@ -149,4 +149,55 @@ textarea { height: 80px; resize: vertical; }
 /* When Mod Mode is active, we will use JS to show these */
 .mod-mode-active .admin-delete-btn {
     display: inline-block;
+
+}
+
+/* ===========================
+   NIGHT MODE (NSFW BOARDS)
+   =========================== */
+
+body.night-mode {
+    background-color: #1a1a1a; /* Dark Gray Background */
+    color: #cccccc;            /* Light Gray Text */
+}
+
+/* Links need to be lighter to be visible on dark bg */
+body.night-mode a { color: #8cbaff; } 
+body.night-mode a:hover { color: #ff6666; }
+
+/* The Post Form and Replies need dark backgrounds */
+body.night-mode .post-box,
+body.night-mode .post-info,
+body.night-mode .reply {
+    background-color: #2b2b2b;
+    border-color: #444;       /* Darker borders */
+    color: #ddd;
+}
+
+/* Form Headers */
+body.night-mode .form-header {
+    background-color: #900;   /* Darker Red */
+}
+
+/* Inputs (Text boxes) */
+body.night-mode input,
+body.night-mode textarea {
+    background-color: #333;
+    color: white;
+    border: 1px solid #555;
+}
+
+/* Specific text colors */
+body.night-mode .subject { color: #ff8888; } /* Light Red */
+body.night-mode .name { color: #88ff88; }    /* Light Green */
+body.night-mode .post-id { color: #888; }
+
+/* Separator Line */
+body.night-mode .thread-separator {
+    border-bottom-color: #444;
+}
+
+/* Backlinks */
+body.night-mode .backlink {
+    color: #ff8888;
 }
