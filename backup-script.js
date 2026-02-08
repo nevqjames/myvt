@@ -10,7 +10,6 @@ const firebaseConfig = {
   measurementId: "G-7TF8SF89DE"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
@@ -25,21 +24,18 @@ function tryLogin() {
         localStorage.setItem('isMod', 'true');
         document.body.classList.add('mod-mode-active');
         alert("Mod Mode Active!");
-        // Clean URL params
         window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
-        location.reload(); // Refresh to show IPs on existing posts
+        location.reload(); 
     } else {
         alert("Wrong password.");
     }
 }
 
-// Check Login Status on Load
 if (localStorage.getItem('isMod') === 'true') {
     isModMode = true;
     document.body.classList.add('mod-mode-active');
 }
 
-// URL Params for Mobile Access (?mod or ?logout)
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.has('mod')) tryLogin();
 if (urlParams.has('logout')) {
@@ -48,7 +44,6 @@ if (urlParams.has('logout')) {
     window.location.href = window.location.pathname + window.location.hash;
 }
 
-// PC Keyboard Shortcuts
 window.addEventListener('keydown', (e) => {
     if (e.shiftKey && e.key === 'L') tryLogin();
     if (e.shiftKey && e.key === 'O') {
@@ -65,6 +60,10 @@ window.addEventListener('load', router);
 
 function router() {
     const hash = window.location.hash;
+
+    // NEW: If the user clicked "Bottom", do nothing and let the HTML anchor handle it
+    if (hash === "#bottom") return; 
+
     if (hash.startsWith("#thread_")) {
         const id = hash.replace("#thread_", "");
         currentThreadId = id;
@@ -75,7 +74,7 @@ function router() {
     }
 }
 
-// --- 4. VIEW LOGIC (BOARD & THREAD) ---
+// --- 4. VIEW LOGIC ---
 
 function loadBoardView() {
     document.getElementById('boardView').style.display = "block";
@@ -83,21 +82,51 @@ function loadBoardView() {
     document.getElementById('formTitle').innerText = "Create New Thread";
     document.getElementById('subjectInput').style.display = "block";
 
-    const listRef = database.ref('boards/myvt/threads');
+    // Use currentBoard variable (defaults to 'myvt' if you haven't set up the board switcher yet)
+    const boardName = typeof currentBoard !== 'undefined' ? currentBoard : 'myvt';
+    
+    const listRef = database.ref('boards/' + boardName + '/threads');
+    
     listRef.orderByChild('lastUpdated').limitToLast(20).on('value', (snapshot) => {
         const div = document.getElementById('threadList');
         div.innerHTML = "";
         const data = snapshot.val();
         if (!data) return;
 
+        // 1. Sort Threads (Newest Bump at Top)
         const sortedThreads = [];
         snapshot.forEach((childSnap) => {
             sortedThreads.push({ id: childSnap.key, ...childSnap.val() });
         });
         sortedThreads.reverse();
 
+        // 2. Loop through each thread
         sortedThreads.forEach((thread) => {
-            div.innerHTML += renderThreadCard(thread.id, thread, true);
+            // A. Render the Main Post (OP)
+            let threadHtml = renderThreadCard(thread.id, thread, true);
+
+            // B. Render the Latest 2 Replies (Preview)
+            if (thread.replies) {
+                // Convert replies object to array: [[id, data], [id, data]...]
+                const repliesArr = Object.entries(thread.replies);
+                
+                // Sort by time (Oldest -> Newest) so they read correctly
+                repliesArr.sort((a, b) => a[1].timestamp - b[1].timestamp);
+
+                // Slice the last 2 items
+                const lastTwo = repliesArr.slice(-2);
+
+                // Render them
+                lastTwo.forEach(([rId, rData]) => {
+                    threadHtml += renderReply(rId, rData, thread.id);
+                });
+            }
+
+            // C. Add the Divider
+            threadHtml += '<hr class="thread-separator">';
+
+            // D. Inject into page
+            div.innerHTML += threadHtml;
         });
     });
 }
@@ -174,12 +203,12 @@ function renderReply(id, data, threadId) {
     </div>`;
 }
 
-// --- 6. FORMATTING & QUOTES ---
+// --- 6. FORMATTING, QUOTES & BACKLINKS ---
 
 function formatComment(text) {
     if (!text) return "";
     let formatted = escapeHtml(text);
-    // Quote Links
+    // Quote Links (Matches escaped &gt;&gt;)
     const quoteRegex = /&gt;&gt;([a-zA-Z0-9\-_]+)/g;
     formatted = formatted.replace(quoteRegex, (m, id) => `<a href="#post_${id}" class="quote-link">>>${id.substring(1,8)}</a>`);
     // Greentext
@@ -203,7 +232,9 @@ function generateBacklinks() {
         const replierId = replierDiv.id.replace("post_", "");
         const links = commentDiv.querySelectorAll('.quote-link');
         links.forEach(link => {
-            const targetId = link.getAttribute('href').replace("#post_", "");
+            const href = link.getAttribute('href');
+            if(!href) return;
+            const targetId = href.replace("#post_", "");
             const container = document.getElementById('backlinks_' + targetId);
             if (container && container.childElementCount < 10) {
                 container.innerHTML += `<a href="#post_${replierId}" class="backlink" onmouseenter="highlightPost('${replierId}')" onmouseleave="unhighlightPost('${replierId}')">&gt;&gt;${replierId.substring(1,8)}</a>`;
@@ -212,21 +243,42 @@ function generateBacklinks() {
     });
 }
 
-// --- 7. SUBMIT LOGIC (WITH IP LOGGING) ---
+// --- 7. SUBMIT LOGIC (SMART IMAGE VALIDATION + IP) ---
+
+function validateImageUrl(url) {
+    return new Promise((resolve) => {
+        if (!url) { resolve(true); return; }
+        const img = new Image();
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+        img.src = url;
+        setTimeout(() => resolve(false), 5000); // Timeout
+    });
+}
 
 document.getElementById('postForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const name = document.getElementById('nameInput').value || "Anonymous";
     const comment = document.getElementById('commentInput').value;
-    const image = document.getElementById('imageInput').value;
+    const image = document.getElementById('imageInput').value.trim();
     if (!comment) return alert("Comment required");
-    
+
+    const btn = e.target.querySelector('button');
+    btn.disabled = true;
+    btn.innerText = "Checking...";
+
+    // Smart Validation
     if (image) {
-        const allowed = /(\.jpg|\.jpeg|\.png|\.gif|\.webp)$/i;
-        if (!allowed.exec(image)) return alert("Invalid Image URL");
+        const isValid = await validateImageUrl(image);
+        if (!isValid) {
+            alert("Invalid Image! URL is broken or not an image.");
+            btn.disabled = false;
+            btn.innerText = "Submit";
+            return;
+        }
     }
 
-    // Fetch IP Address
+    // Fetch IP
     let userIP = "Unknown";
     try {
         const resp = await fetch('https://api.ipify.org?format=json');
@@ -238,20 +290,22 @@ document.getElementById('postForm').addEventListener('submit', async function(e)
     const postData = { name, comment, image, timestamp: now, ip: userIP };
 
     if (currentThreadId) {
-        database.ref('boards/myvt/threads/' + currentThreadId + '/replies').push(postData);
-        database.ref('boards/myvt/threads/' + currentThreadId).update({ lastUpdated: now });
+        await database.ref('boards/myvt/threads/' + currentThreadId + '/replies').push(postData);
+        await database.ref('boards/myvt/threads/' + currentThreadId).update({ lastUpdated: now });
     } else {
         postData.subject = document.getElementById('subjectInput').value;
         postData.lastUpdated = now;
-        database.ref('boards/myvt/threads').push(postData);
+        await database.ref('boards/myvt/threads').push(postData);
     }
 
     document.getElementById('commentInput').value = "";
     document.getElementById('imageInput').value = "";
     document.getElementById('subjectInput').value = "";
+    btn.disabled = false;
+    btn.innerText = "Submit";
 });
 
-// --- 8. DELETE FUNCTIONS ---
+// --- 8. MODERATION ---
 function deleteThread(id) { if(confirm("Delete thread?")) database.ref('boards/myvt/threads/'+id).remove(); }
 function deleteReply(tId, rId) { if(confirm("Delete post?")) database.ref('boards/myvt/threads/'+tId+'/replies/'+rId).remove(); }
 
@@ -261,4 +315,6 @@ function unhighlightPost(id) { const el = document.getElementById('post_'+id); i
 function renderImage(url) { return url ? `<img src="${url}" class="thread-image" onclick="openLightbox('${url}')">` : ""; }
 function openLightbox(url) { document.getElementById('lightboxImg').src = url; document.getElementById('lightbox').style.display = 'flex'; }
 function closeLightbox() { document.getElementById('lightbox').style.display = 'none'; }
+
 function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
+
