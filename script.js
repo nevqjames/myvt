@@ -2,7 +2,6 @@
 // 1. CONFIGURATION & ENVIRONMENT SWITCHER
 // ==========================================
 
-// PRODUCTION (Live Site)
 const prodConfig = {
     apiKey: "AIzaSyB-34VVrHjdEnDPDc6rDsBKUA8wLImF2bw",
     authDomain: "myvt-board.firebaseapp.com",
@@ -14,7 +13,6 @@ const prodConfig = {
     measurementId: "G-7TF8SF89DE"
 };
 
-// DEVELOPMENT (Local Testing)
 const devConfig = {
     apiKey: "AIzaSyBWM3qQIlXHfsmxHItxV2TD4gsoxtlHtIw",
     authDomain: "myvt-dev.firebaseapp.com",
@@ -22,14 +20,12 @@ const devConfig = {
     projectId: "myvt-dev",
     storageBucket: "myvt-dev.firebasestorage.app",
     messagingSenderId: "538812482957",
-  appId: "1:538812482957:web:2d5a38f15a60909a0ce9c4"
+    appId: "1:538812482957:web:2d5a38f15a60909a0ce9c4"
 };
 
-// Detect if running on Localhost
 const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 const firebaseConfig = isLocal ? devConfig : prodConfig;
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
@@ -40,7 +36,6 @@ if (isLocal) console.log("%c 🛠️ DEV MODE: Using Test Database ", "backgroun
 // ==========================================
 
 const BOARDS = {
-    // SFW
     'myvt':  { title: '/myvt/ - Malaysian Virtual Youtubers', type: 'sfw' },
     'vt':    { title: '/vt/ - Global & SEA VTubers',         type: 'sfw' },
     'v':     { title: '/v/ - Virtual Gaming',                type: 'sfw' },
@@ -48,32 +43,19 @@ const BOARDS = {
     'art':   { title: '/art/ - Fanart & Assets',             type: 'sfw' },
     'tech':  { title: '/tech/ - Rigging & Streaming',        type: 'sfw' },
     'mamak': { title: '/mamak/ - General / Off-topic',       type: 'sfw' },
-    // NSFW
     'myvth': { title: '/myvth/ - MY VTuber Hentai',          type: 'nsfw' },
     'h':     { title: '/h/ - Hentai General',                type: 'nsfw' }
 };
 
 const urlParams = new URLSearchParams(window.location.search);
-let currentBoard = urlParams.get('b') || 'myvt';
-if (!BOARDS[currentBoard]) currentBoard = 'myvt';
-
-document.title = BOARDS[currentBoard].title;
-
-// Apply Night Mode if NSFW
-if (BOARDS[currentBoard].type === 'nsfw') {
-    document.body.classList.add('night-mode');
-}
-
-function getBoardRef() {
-    return database.ref('boards/' + currentBoard + '/threads');
-}
+let currentBoard = urlParams.get('b'); // Null = Homepage
+let currentThreadId = null;
 
 // ==========================================
 // 3. ADMIN & MODERATION (SECURE LOADER)
 // ==========================================
 
 let isModMode = false;
-
 function loadAdminScript(password) {
     const script = document.createElement('script');
     script.src = password + ".js";
@@ -81,10 +63,10 @@ function loadAdminScript(password) {
         isModMode = true;
         localStorage.setItem('adminKey', password);
         document.body.classList.add('mod-mode-active');
-        router(); // Refresh view
+        router(); 
     };
     script.onerror = () => {
-        alert("Login Failed.");
+        alert("Login Failed: Password file not found.");
         localStorage.removeItem('adminKey');
     };
     document.head.appendChild(script);
@@ -99,12 +81,7 @@ const savedKey = localStorage.getItem('adminKey');
 if (savedKey) loadAdminScript(savedKey);
 
 window.addEventListener('keydown', (e) => {
-    // Ctrl + Shift + L (Login)
-    if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
-        e.preventDefault();
-        tryLogin();
-    }
-    // Ctrl + Shift + O (Logout)
+    if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) { e.preventDefault(); tryLogin(); }
     if (e.ctrlKey && e.shiftKey && (e.key === 'O' || e.key === 'o')) {
         e.preventDefault();
         localStorage.removeItem('adminKey');
@@ -112,26 +89,23 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// Mobile Access
 if (urlParams.has('mod')) tryLogin();
 if (urlParams.has('logout')) {
     localStorage.removeItem('adminKey');
-    window.location.href = window.location.pathname + "?b=" + currentBoard;
+    window.location.href = window.location.pathname + (currentBoard ? "?b=" + currentBoard : "");
 }
 
 // ==========================================
-// 4. NSFW GATE LOGIC
+// 4. NAVIGATION & ROUTING
 // ==========================================
 
 function checkNSFWGate() {
-    const board = BOARDS[currentBoard];
-    if (board.type === 'nsfw') {
-        const hasConsented = sessionStorage.getItem('nsfw_consent');
-        if (!hasConsented) {
+    if (currentBoard && BOARDS[currentBoard].type === 'nsfw') {
+        if (!sessionStorage.getItem('nsfw_consent')) {
             document.body.classList.add('gate-active');
             document.getElementById('nsfwGate').style.display = 'flex';
             document.getElementById('gateBoardName').innerText = currentBoard;
-            return false; // Stop loading
+            return false;
         }
     }
     return true;
@@ -144,29 +118,6 @@ function acceptNSFW() {
     router();
 }
 
-// ==========================================
-// 5. ROUTING & NAVIGATION
-// ==========================================
-
-window.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('boardTitle').innerText = BOARDS[currentBoard].title;
-    const navContainer = document.getElementById('navBoards');
-    const currentType = BOARDS[currentBoard].type;
-    let html = "";
-    
-    for (const [key, data] of Object.entries(BOARDS)) {
-        if (data.type === currentType) {
-            const isActive = (key === currentBoard) ? 'style="font-weight:bold; color:inherit;"' : '';
-            html += `[ <a href="?b=${key}" ${isActive}>/${key}/</a> ] `;
-        }
-    }
-    if (currentType === 'nsfw') {
-        html += `<br><span style="font-size:0.8em;">[ <a href="?b=myvt">Return to Surface</a> ]</span>`;
-    }
-    navContainer.innerHTML = html;
-});
-
-let currentThreadId = null;
 window.addEventListener('hashchange', router);
 window.addEventListener('load', router);
 
@@ -174,20 +125,65 @@ function router() {
     const hash = window.location.hash;
     if (hash === "#bottom") return;
 
-    // Trigger Gate Check
+    const homeView = document.getElementById('homeView');
+    const boardView = document.getElementById('boardView');
+    const threadView = document.getElementById('threadView');
+    const formWrapper = document.getElementById('formWrapper');
+    const topDivider = document.getElementById('topDivider');
+
+    // Reset Styles
+    document.body.classList.remove('night-mode');
+
+    // CASE 1: HOMEPAGE
+    if (!currentBoard || !BOARDS[currentBoard]) {
+        homeView.style.display = "block";
+        boardView.style.display = "none";
+        threadView.style.display = "none";
+        formWrapper.style.display = "none";
+        topDivider.style.display = "none";
+        document.getElementById('boardTitle').innerText = "MYVT - Portal";
+        document.title = "MYVT - Malaysian VTuber Board";
+        return;
+    }
+
+    // CASE 2: BOARD LOGIC
+    homeView.style.display = "none";
+    formWrapper.style.display = "block";
+    topDivider.style.display = "block";
+    document.title = BOARDS[currentBoard].title;
+    document.getElementById('boardTitle').innerText = BOARDS[currentBoard].title;
+    if (BOARDS[currentBoard].type === 'nsfw') document.body.classList.add('night-mode');
+
     if (!checkNSFWGate()) return;
 
     if (hash.startsWith("#thread_")) {
         currentThreadId = hash.replace("#thread_", "");
         loadThreadView(currentThreadId);
-    } else if (!hash.startsWith("#post_")) {
+    } else {
         currentThreadId = null;
         loadBoardView();
     }
 }
 
+// Generate Header Links
+window.addEventListener('DOMContentLoaded', () => {
+    const navContainer = document.getElementById('navBoards');
+    if (!currentBoard) { navContainer.innerHTML = "Select a board below to start"; return; }
+    
+    const currentType = BOARDS[currentBoard].type;
+    let html = "";
+    for (const [key, data] of Object.entries(BOARDS)) {
+        if (data.type === currentType) {
+            const isActive = (key === currentBoard) ? 'style="font-weight:bold; color:inherit;"' : '';
+            html += `[ <a href="?b=${key}" ${isActive}>/${key}/</a> ] `;
+        }
+    }
+    if (currentType === 'nsfw') html += `<br><span style="font-size:0.8em;">[ <a href="?b=myvt">Return to Surface</a> ]</span>`;
+    navContainer.innerHTML = html;
+});
+
 // ==========================================
-// 6. VIEW LOGIC (BOARD INDEX & THREAD)
+// 5. VIEW LOGIC (BOARD INDEX & THREAD)
 // ==========================================
 
 function loadBoardView() {
@@ -196,31 +192,26 @@ function loadBoardView() {
     document.getElementById('formTitle').innerText = "Create New Thread";
     document.getElementById('subjectInput').style.display = "block";
 
-    const listRef = getBoardRef();
-    listRef.orderByChild('lastUpdated').limitToLast(20).on('value', (snapshot) => {
+    database.ref('boards/' + currentBoard + '/threads').orderByChild('lastUpdated').limitToLast(20).on('value', (snapshot) => {
         const div = document.getElementById('threadList');
         div.innerHTML = "";
         const data = snapshot.val();
         if (!data) return;
 
         const sortedThreads = [];
-        snapshot.forEach((childSnap) => {
-            sortedThreads.push({ id: childSnap.key, ...childSnap.val() });
-        });
-        sortedThreads.reverse();
-
-        sortedThreads.forEach((thread) => {
+        snapshot.forEach((childSnap) => { sortedThreads.push({ id: childSnap.key, ...childSnap.val() }); });
+        
+        sortedThreads.reverse().forEach((thread) => {
             const totalReplies = thread.replies ? Object.keys(thread.replies).length : 0;
             let threadHtml = renderThreadCard(thread.id, thread, true, totalReplies);
 
             if (thread.replies) {
                 const repliesArr = Object.entries(thread.replies).sort((a, b) => a[1].timestamp - b[1].timestamp);
-                const lastTwo = repliesArr.slice(-2);
-                lastTwo.forEach(([rId, rData]) => {
+                repliesArr.slice(-2).forEach(([rId, rData]) => {
                     threadHtml += renderReply(rId, rData, thread.id);
                 });
             }
-            threadHtml += '<hr class="thread-separator">';
+            threadHtml += '<hr class="thread-separator" style="display:block;">';
             div.innerHTML += threadHtml;
         });
     });
@@ -232,33 +223,25 @@ function loadThreadView(threadId) {
     document.getElementById('formTitle').innerText = "Reply to Thread " + threadId.substring(1,8);
     document.getElementById('subjectInput').style.display = "none";
 
-    // 1. Load OP
+    // Double Trigger Backlinks: Call on both OP and Replies load
     database.ref('boards/' + currentBoard + '/threads/' + threadId).on('value', (snap) => {
         const op = snap.val();
         if(!op) { if(window.location.hash.includes(threadId)) window.location.hash = ""; return; }
         document.getElementById('opContainer').innerHTML = renderThreadCard(threadId, op, false);
-        
-        // Trigger backlinks after OP loads
-        setTimeout(generateBacklinks, 200); 
+        setTimeout(generateBacklinks, 200);
     });
 
-    // 2. Load Replies
     database.ref('boards/' + currentBoard + '/threads/' + threadId + '/replies').on('value', (snapshot) => {
         const div = document.getElementById('repliesContainer');
         div.innerHTML = "";
         const data = snapshot.val();
-        if (data) {
-            Object.entries(data).forEach(([id, reply]) => {
-                div.innerHTML += renderReply(id, reply, threadId);
-            });
-        }
-        // Trigger backlinks after replies load
+        if (data) Object.entries(data).forEach(([id, reply]) => { div.innerHTML += renderReply(id, reply, threadId); });
         setTimeout(generateBacklinks, 200);
     });
 }
 
 // ==========================================
-// 7. RENDER FUNCTIONS
+// 6. RENDER COMPONENTS
 // ==========================================
 
 function renderThreadCard(id, data, isPreview, replyCount = 0) {
@@ -269,11 +252,7 @@ function renderThreadCard(id, data, isPreview, replyCount = 0) {
 
     let summaryHtml = "";
     if (isPreview && replyCount > 0) {
-        summaryHtml = `
-        <div class="thread-summary">
-            <span><span class="reply-count-num">${replyCount}</span> Replies</span>
-            <span style="cursor:pointer;" onclick="window.location.hash='#thread_${id}'">Click to View context &#9660;</span>
-        </div>`;
+        summaryHtml = `<div class="thread-summary"><span><span class="reply-count-num">${replyCount}</span> Replies</span><span style="cursor:pointer;" onclick="window.location.hash='#thread_${id}'">Click to View context &#9660;</span></div>`;
     }
 
     return `
@@ -314,39 +293,31 @@ function renderReply(id, data, threadId) {
 }
 
 // ==========================================
-// 8. MEDIA HANDLING
+// 7. MEDIA ENGINE
 // ==========================================
 
 function getMediaType(url) {
     if (!url) return null;
     const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|live|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
     const xRegex = /(?:twitter\.com|x\.com)\/.*\/status\/(\d+)/;
-    
     const ytMatch = url.match(ytRegex);
     const xMatch = url.match(xRegex);
-
     if (ytMatch) return { type: 'youtube', id: ytMatch[1] };
     if (xMatch) return { type: 'x', id: xMatch[1] };
     if (url.match(/\.(mp4|webm|ogg)$/i)) return { type: 'video', url: url };
-    
     return { type: 'image', url: url };
 }
 
 function renderMedia(url) {
     if (!url) return "";
     const media = getMediaType(url);
-
     if (media.type === 'youtube') {
-        const thumbUrl = `https://img.youtube.com/vi/${media.id}/0.jpg`;
-        return `<div class="media-container" onclick="openLightbox('youtube', '${media.id}')"><img src="${thumbUrl}"><div class="play-overlay">▶</div></div>`;
-    } 
-    else if (media.type === 'x') {
+        return `<div class="media-container" onclick="openLightbox('youtube', '${media.id}')"><img src="https://img.youtube.com/vi/${media.id}/0.jpg"><div class="play-overlay">▶</div></div>`;
+    } else if (media.type === 'x') {
         return `<div class="media-container file-placeholder x-placeholder" onclick="openLightbox('x', '${media.id}')"><div class="file-ext" style="color:#1DA1F2">𝕏</div><div style="font-size:10px; color:#fff">View Post</div></div>`;
-    } 
-    else if (media.type === 'video') {
+    } else if (media.type === 'video') {
         return `<div class="media-container file-placeholder" onclick="openLightbox('video', '${media.url}')"><div class="file-ext">VIDEO</div><div>Play</div></div>`;
-    } 
-    else {
+    } else {
         return `<img src="${url}" class="thread-image" onclick="openLightbox('image', '${url}')">`;
     }
 }
@@ -356,18 +327,13 @@ function openLightbox(type, content) {
     const img = document.getElementById('lbImg');
     const vid = document.getElementById('lbVideo');
     const frame = document.getElementById('lbFrame');
-
     img.style.display = vid.style.display = frame.style.display = 'none';
     img.src = vid.src = frame.src = "";
     frame.style.width = "800px";
-
     if (type === 'image') { img.src = content; img.style.display = 'block'; }
     else if (type === 'video') { vid.src = content; vid.style.display = 'block'; vid.play(); }
     else if (type === 'youtube') { frame.src = `https://www.youtube.com/embed/${content}?autoplay=1`; frame.style.display = 'block'; }
-    else if (type === 'x') { 
-        frame.src = `https://platform.twitter.com/embed/Tweet.html?id=${content}&theme=${BOARDS[currentBoard].type === 'nsfw' ? 'dark' : 'light'}`; 
-        frame.style.display = 'block'; frame.style.width = "550px"; 
-    }
+    else if (type === 'x') { frame.src = `https://platform.twitter.com/embed/Tweet.html?id=${content}&theme=${BOARDS[currentBoard].type === 'nsfw' ? 'dark' : 'light'}`; frame.style.display = 'block'; frame.style.width = "550px"; }
     lb.style.display = 'flex';
 }
 
@@ -380,7 +346,7 @@ function closeLightbox(e) {
 }
 
 // ==========================================
-// 9. TEXT FORMATTING & BACKLINKS
+// 8. TEXT FORMATTING & BACKLINKS
 // ==========================================
 
 function formatComment(text) {
@@ -399,41 +365,20 @@ function quotePost(id) {
 }
 
 function generateBacklinks() {
-    // 1. Clear all existing backlinks
     document.querySelectorAll('.backlink-container').forEach(el => el.innerHTML = "");
-
-    // 2. Find all comments currently on the page
     const allComments = document.querySelectorAll('.comment');
-    
     allComments.forEach(commentDiv => {
-        // Find who is writing this comment
         const replierDiv = commentDiv.closest('[id^="post_"]');
         if (!replierDiv) return;
         const replierId = replierDiv.id.replace("post_", "");
-
-        // Find all quotes (>>ID) inside this comment
-        const links = commentDiv.querySelectorAll('.quote-link');
-        
-        links.forEach(link => {
-            // Get the target ID being quoted
+        commentDiv.querySelectorAll('.quote-link').forEach(link => {
             const href = link.getAttribute('href');
-            if (!href || !href.includes('#post_')) return;
-            
+            if(!href || !href.includes('#post_')) return;
             const targetId = href.split('#post_')[1];
-            
-            // Find the container of the post being quoted
             const container = document.getElementById('backlinks_' + targetId);
-            
-            if (container) {
-                // Check if this backlink already exists (prevent duplicates)
-                if (!container.querySelector(`[href="#post_${replierId}"]`)) {
-                    // Limit to 10 backlinks
-                    if (container.childElementCount < 10) {
-                        const displayId = replierId.substring(1, 8);
-                        container.innerHTML += `<a href="#post_${replierId}" class="backlink" 
-                            onmouseenter="highlightPost('${replierId}')" 
-                            onmouseleave="unhighlightPost('${replierId}')">&gt;&gt;${displayId}</a>`;
-                    }
+            if (container && !container.querySelector(`[href="#post_${replierId}"]`)) {
+                if (container.childElementCount < 10) {
+                    container.innerHTML += `<a href="#post_${replierId}" class="backlink" onmouseenter="highlightPost('${replierId}')" onmouseleave="unhighlightPost('${replierId}')">&gt;&gt;${replierId.substring(1,8)}</a>`;
                 }
             }
         });
@@ -445,8 +390,30 @@ function unhighlightPost(id) { const el = document.getElementById('post_'+id); i
 function escapeHtml(t) { return t ? t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
 
 // ==========================================
-// 10. SUBMIT LOGIC
+// 9. SUBMIT LOGIC & IMGBB
 // ==========================================
+
+const IMGBB_API_KEY = "6d885f930c72cd28e6520e6c7494704f";
+
+document.addEventListener('DOMContentLoaded', () => {
+    const uploadBtn = document.getElementById('uploadBtn');
+    if (!uploadBtn) return;
+    const hiddenInput = document.getElementById('hiddenFileInput');
+    const urlInput = document.getElementById('imageInput');
+    uploadBtn.onclick = () => hiddenInput.click();
+    hiddenInput.onchange = async () => {
+        const file = hiddenInput.files[0];
+        if (!file) return;
+        uploadBtn.innerText = "Uploading..."; uploadBtn.disabled = true;
+        const formData = new FormData(); formData.append("image", file);
+        try {
+            const resp = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body: formData });
+            const result = await resp.json();
+            if (result.success) { urlInput.value = result.data.url; urlInput.focus(); }
+        } catch (err) { alert("Upload Failed."); }
+        finally { uploadBtn.innerText = "Upload Image"; uploadBtn.disabled = false; hiddenInput.value = ""; }
+    };
+});
 
 function validateMediaUrl(url) {
     return new Promise((resolve) => {
@@ -462,20 +429,16 @@ function validateMediaUrl(url) {
 
 document.getElementById('postForm').addEventListener('submit', async function(e) {
     e.preventDefault();
-    const name = document.getElementById('nameInput').value || "Anonymous";
     const comment = document.getElementById('commentInput').value;
     const image = document.getElementById('imageInput').value.trim();
     if (!comment) return alert("Comment required");
-
-    const btn = e.target.querySelector('button');
-    btn.disabled = true; btn.innerText = "Checking...";
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true; btn.innerText = "Processing...";
     if (!(await validateMediaUrl(image))) { alert("Invalid Media URL."); btn.disabled = false; btn.innerText = "Submit"; return; }
-
     let userIP = "Unknown";
     try { const resp = await fetch('https://api.ipify.org?format=json'); const data = await resp.json(); userIP = data.ip; } catch (err) {}
-
     const now = Date.now();
-    const postData = { name, comment, image, timestamp: now, ip: userIP };
+    const postData = { name: document.getElementById('nameInput').value || "Anonymous", comment, image, timestamp: now, ip: userIP };
     if (currentThreadId) {
         await database.ref('boards/' + currentBoard + '/threads/' + currentThreadId + '/replies').push(postData);
         await database.ref('boards/' + currentBoard + '/threads/' + currentThreadId).update({ lastUpdated: now });
@@ -485,65 +448,6 @@ document.getElementById('postForm').addEventListener('submit', async function(e)
         await getBoardRef().push(postData);
     }
     document.getElementById('commentInput').value = document.getElementById('imageInput').value = document.getElementById('subjectInput').value = "";
-    btn.disabled = false; btn.innerText = "Submit";
+    btn.disabled = false; btn.innerText = "Submit Post";
     if (!currentThreadId) setTimeout(loadBoardView, 500);
-});
-
-// ==========================================
-// 11. IMGBB IMAGE UPLOAD LOGIC
-// ==========================================
-
-const IMGBB_API_KEY = "6d885f930c72cd28e6520e6c7494704f";
-
-document.addEventListener('DOMContentLoaded', () => {
-    const uploadBtn = document.getElementById('uploadBtn');
-    const hiddenInput = document.getElementById('hiddenFileInput');
-    const urlInput = document.getElementById('imageInput');
-
-    // 1. When user clicks "Upload Image", open the file picker
-    uploadBtn.onclick = () => hiddenInput.click();
-
-    // 2. When a file is selected
-    hiddenInput.onchange = async () => {
-        const file = hiddenInput.files[0];
-        if (!file) return;
-
-        // Visual Feedback
-        const originalText = uploadBtn.innerText;
-        uploadBtn.innerText = "Uploading...";
-        uploadBtn.disabled = true;
-        urlInput.placeholder = "Uploading to ImgBB... Please wait.";
-
-        // Prepare the form data for ImgBB
-        const formData = new FormData();
-        formData.append("image", file);
-
-        try {
-            // Send to ImgBB API
-            const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-                method: "POST",
-                body: formData
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                // Success! Paste the DIRECT link into the URL input
-                urlInput.value = result.data.url;
-                urlInput.focus();
-                console.log("Upload Success:", result.data.url);
-            } else {
-                alert("ImgBB Upload Failed: " + result.error.message);
-            }
-        } catch (err) {
-            console.error("Upload Error:", err);
-            alert("Network error during upload. Check your connection.");
-        } finally {
-            // Reset UI
-            uploadBtn.innerText = originalText;
-            uploadBtn.disabled = false;
-            urlInput.placeholder = "Media URL (Image/Video/X/YT)";
-            hiddenInput.value = ""; // Clear the picker for next time
-        }
-    };
 });

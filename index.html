@@ -11,81 +11,105 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-
-    <!-- HEADER -->
+    <!-- 1. HEADER (Always Visible) -->
     <div class="header">
-        <h1 id="boardTitle">Loading...</h1>
-        
-        <!-- Empty container: JS will inject the correct links here -->
+        <h1 id="boardTitle">MYVT - Malaysian VTuber Board</h1>
         <div class="nav-boards" id="navBoards"></div>
-        
         <div class="nav-site">
-            [ <a href="#" onclick="window.location.hash=''; return false;">Home</a> ] 
-            [ <a href="#catalog">Catalog</a> ] 
+            [ <a href="/">Home</a> ] 
             [ <a href="#bottom">Bottom</a> ]
         </div>
     </div>
 
-    <!-- POST FORM (Dynamic) -->
-    <div class="post-box">
+    <!-- 2. POST FORM (Hidden on Home) -->
+    <div id="formWrapper" class="post-box" style="display:none;">
         <div class="form-header" id="formTitle">Create New Thread</div>
         <form id="postForm">
             <input type="text" id="nameInput" placeholder="Name (Anonymous)" value="Anonymous">
             <input type="text" id="subjectInput" placeholder="Subject">
             <textarea id="commentInput" placeholder="Comment" required></textarea>
-            
-            <!-- Updated Media Section -->
             <div style="display: flex; gap: 5px;">
                 <input type="url" id="imageInput" placeholder="Media URL (Image/Video/X/YT)" style="flex-grow: 1;">
-                <button type="button" id="uploadBtn" style="width: auto; padding: 0 10px; white-space: nowrap;">Upload Image</button>
+                <button type="button" id="uploadBtn">Upload Image</button>
             </div>
-            <!-- Hidden File Input -->
             <input type="file" id="hiddenFileInput" accept="image/*" style="display: none;">
-            
-            <button type="submit">Submit Post</button>
+            <button type="submit" id="submitBtn">Submit Post</button>
         </form>
     </div>
 
-    <hr>
+    <hr id="topDivider">
 
-    <!-- VIEW 1: BOARD INDEX (List of Threads) -->
-    <div id="boardView">
+    <!-- 3. VIEW: HOME PAGE -->
+    <div id="homeView" class="home-container" style="display:none;">
+        <div class="welcome-section">
+            <h2>Selamat Datang to /myvt/</h2>
+            <p>The premier imageboard for the Malaysian Virtual YouTuber community and adjacent Otaku culture.</p>
+        </div>
+
+        <div class="instruction-grid">
+            <div class="ins-card">
+                <h3>🍱 Board Directory</h3>
+                <div class="home-links">
+                    <a href="?b=myvt">/myvt/ - MY VTubers</a>
+                    <a href="?b=vt">/vt/ - Global/SEA VT</a>
+                    <a href="?b=v">/v/ - Video Gaming</a>
+                    <a href="?b=acg">/acg/ - Anime & Events</a>
+                    <a href="?b=art">/art/ - Fanart/Assets</a>
+                    <a href="?b=tech">/tech/ - Tech Support</a>
+                    <a href="?b=mamak">/mamak/ - General & Off-Topic</a>
+                </div>
+            </div>
+            <div class="ins-card">
+                <h3>📖 How to Use</h3>
+                <ul>
+                    <li><b>Start a Thread:</b> Pick a board, fill the form at the top, and attach media.</li>
+                    <li><b>Replying:</b> Click <b>[Reply ➜]</b> or a Post ID (No. XXXXXXX) to quote.</li>
+                    <li><b>Media:</b> We support direct image uploads, YouTube links, and X (Twitter) links.</li>
+                    <li><b>Bumping:</b> New replies push threads to the top of the board.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="rules-box">
+            <h3>📜 Rules</h3>
+            <p>1. No illegal content (CSAM, etc). 2. No spam or commercial ads. 3. Be civil with local talents.</p>
+        </div>
+
+        <div class="footer-secret">
+            <a href="?b=myvth" class="secret-link">.</a> <!-- The semi-hidden entry -->
+        </div>
+    </div>
+
+    <!-- 4. VIEW: BOARD INDEX -->
+    <div id="boardView" style="display:none;">
         <div id="threadList"></div>
     </div>
 
-    <!-- VIEW 2: SINGLE THREAD (OP + Replies) -->
+    <!-- 5. VIEW: SINGLE THREAD -->
     <div id="threadView" style="display:none;">
         <div class="back-link">[ <a href="#" onclick="window.location.hash=''; return false;">Return to Board</a> ]</div>
-        <div id="opContainer"></div> <!-- The Main Post goes here -->
-        <div id="repliesContainer"></div> <!-- The Replies go here -->
+        <div id="opContainer"></div>
+        <div id="repliesContainer"></div>
     </div>
 
-    <!-- LIGHTBOX OVERLAY -->
+    <!-- 6. UTILS -->
+    <div id="nsfwGate" style="display:none;">
+        <div class="gate-box">
+            <h2>⚠️ 18+ ADULT CONTENT WARNING</h2>
+            <p>This board (/<span id="gateBoardName"></span>/) contains <b>Explicit Adult Content</b>.</p>
+            <button onclick="acceptNSFW()" class="btn-enter">I am 18+ / Enter</button>
+            <button onclick="window.location.href='index.html'" class="btn-exit">Exit</button>
+        </div>
+    </div>
+
     <div id="lightbox" onclick="closeLightbox(event)">
-        <!-- Container to center content -->
         <div id="lightboxContent">
             <img id="lbImg" style="display:none">
             <video id="lbVideo" controls style="display:none"></video>
             <iframe id="lbFrame" frameborder="0" allowfullscreen style="display:none"></iframe>
         </div>
     </div>
-
-    <!-- NSFW CONTENT GATE -->
-    <div id="nsfwGate" style="display:none;">
-        <div class="gate-box">
-            <h2>⚠️ 18+ ADULT CONTENT WARNING</h2>
-            <p>The board you are trying to access (/<span id="gateBoardName"></span>/) contains <b>Explicit Adult Content (NSFW)</b>.</p>
-            <p>By clicking "Enter", you confirm that you are at least 18 years of age and consent to viewing such material.</p>
-            <div class="gate-buttons">
-                <button onclick="acceptNSFW()" class="btn-enter">I am 18+ / Enter</button>
-                <button onclick="window.location.href='?b=myvt'" class="btn-exit">Take me back</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ADD THIS LINE HERE -->
     <div id="bottom"></div>
-
     <script src="script.js"></script>
 </body>
 
