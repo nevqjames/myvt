@@ -1,11 +1,13 @@
+/* =========================================
+   1. RESET & GLOBAL STYLES
+   ========================================= */
 html {
     scroll-behavior: smooth;
 }
 
-/* RESET & BASIC */
 body {
-    background-color: #ffe; /* Classic pale yellow */
-    color: #800000; /* Dark red text */
+    background-color: #ffe;
+    color: #800000;
     font-family: arial, helvetica, sans-serif;
     font-size: 10pt;
     margin: 0;
@@ -15,10 +17,17 @@ body {
 a { color: #0000ee; text-decoration: none; cursor: pointer; }
 a:hover { color: #d00; }
 
+hr { border: 0; border-bottom: 1px solid #d9bfb7; }
+
+/* =========================================
+   2. HEADER & NAVIGATION
+   ========================================= */
 .header { text-align: center; margin-bottom: 20px; }
 .header h1 { color: #af0a0a; font-size: 24px; margin: 5px; }
 
-/* POST FORM */
+/* =========================================
+   3. POST FORM
+   ========================================= */
 .post-box {
     background-color: #f0e0d6;
     border: 1px solid #d9bfb7;
@@ -38,232 +47,230 @@ form { display: flex; flex-direction: column; gap: 5px; padding: 10px; }
 input, textarea { width: 98%; border: 1px solid #ccc; padding: 2px; }
 textarea { height: 80px; resize: vertical; }
 
-/* THREAD LIST */
+/* =========================================
+   4. THREAD CARD LAYOUT
+   ========================================= */
 .thread-card {
-    border-bottom: 1px solid #d9bfb7;
+    background-color: #fff;
+    border: 1px solid #d9bfb7;
     padding: 10px;
+    margin-bottom: 25px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+    overflow: hidden;
+    max-width: 850px; 
+    width: auto; 
+}
+
+/* Header Row */
+.thread-card .post-info {
+    display: block;
+    width: 100%;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
     margin-bottom: 10px;
-    overflow: hidden; /* Clears floats */
+    background-color: transparent;
 }
 
-/* INDIVIDUAL POSTS */
-.post-info { background-color: #f0e0d6; padding: 2px; display: inline-block; }
-.subject { color: #cc1105; font-weight: bold; }
-.name { color: #117743; font-weight: bold; }
-.time { color: #555; font-size: 0.9em; }
-
-/* UPDATED IMAGE HANDLING (THUMBNAILS) */
-.thread-image {
-    float: left;
-    margin: 5px 20px 20px 5px;
-    
-    /* Force thumbnail size constraints */
-    max-width: 200px;
-    max-height: 200px;
-    width: auto;
-    height: auto;
-    
-    border: 2px solid #000055;
-    cursor: pointer; /* Shows hand icon on hover to indicate clickable */
+/* Content Area */
+.post-content {
+    display: block;
+    min-height: 80px;
 }
 
-.comment { margin-left: 15px; word-wrap: break-word; white-space: pre-wrap; }
+/* Reply Button */
+.reply-link {
+    float: right;
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-left: 10px;
+    background-color: #f0f0f0;
+    color: #555;
+    padding: 2px 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
 
-/* REPLIES */
+/* Thread Summary Footer */
+.thread-summary {
+    clear: both;
+    display: block;
+    margin-top: 15px;
+    padding-top: 5px;
+    border-top: 1px dotted #ccc;
+    font-size: 0.85em;
+    color: #555;
+}
+.reply-count-num { font-weight: bold; color: #af0a0a; }
+
+/* =========================================
+   5. REPLIES LAYOUT
+   ========================================= */
 .reply {
     background-color: #f0e0d6;
     border: 1px solid #d9bfb7;
-    margin: 4px 0 4px 20px; /* Indent */
-    padding: 4px;
+    margin: 5px 0 5px 20px;
+    padding: 8px;
     display: table;
-    min-width: 400px;
-}
-.reply .post-info { background-color: transparent; } /* Replies don't need darker headers */
-
-.reply-link { float: right; font-size: 20px; margin-right: 10px; }
-
-/* NEW: LIGHTBOX (THE POPUP OVERLAY) */
-#lightbox {
-    display: none; /* Hidden by default */
-    position: fixed;
-    z-index: 1000; /* Sit on top of everything */
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.85); /* Dark semi-transparent background */
-    
-    /* Center the content */
-    justify-content: center;
-    align-items: center;
+    max-width: 800px;
+    min-width: 350px;
+    overflow: hidden; /* CLEARFIX: Forces box to contain the floated image */
 }
 
-#lightbox img {
-    max-width: 90%; /* Keep image within screen bounds */
-    max-height: 90%;
-    border: 2px solid white;
-    box-shadow: 0 0 20px black;
-    cursor: pointer;
+.reply .post-info {
+    display: block;
+    background-color: transparent;
+    border-bottom: none;
+    margin-bottom: 5px;
+    padding: 0;
 }
 
-/* QUOTING STYLES */
-.quote-link {
-    color: #d00;
-    text-decoration: underline;
-    cursor: pointer;
+/* =========================================
+   6. TEXT & METADATA
+   ========================================= */
+.subject { color: #cc1105; font-weight: bold; font-size: 1.1em; margin-right: 5px; }
+.name { color: #117743; font-weight: bold; margin-right: 5px; }
+.time { color: #555; font-size: 0.9em; margin-right: 5px; }
+.post-id { color: #555; cursor: pointer; font-size: 0.9em; }
+.post-id:hover { color: #d00; }
+
+.comment { 
+    margin-left: 10px; 
+    word-wrap: break-word; 
+    white-space: pre-wrap; 
+    line-height: 1.4;
 }
 
-.backlink-container {
-    font-size: 0.8em;
-    margin-top: 5px;
-    color: #dd0000;
-}
+.quote-link { color: #d00; text-decoration: underline; cursor: pointer; }
+.backlink-container { font-size: 0.75em; margin-top: 8px; color: #dd0000; }
+.backlink { color: #dd0000; text-decoration: underline; margin-right: 5px; }
 
-.backlink {
-    color: #dd0000;
-    text-decoration: underline;
-    margin-right: 5px;
-}
-
-/* Make the Post Number clickable and look active */
-.post-id {
-    color: #555;
-    cursor: pointer;
-}
-.post-id:hover {
-    color: #d00;
-}
-
-/* ADMIN/MOD STYLES */
-.admin-delete-btn {
-    display: none; /* Hidden by default */
-    color: red;
-    font-weight: bold;
-    margin-left: 10px;
-    cursor: pointer;
-    border: 1px solid red;
-    padding: 0 3px;
-    font-size: 0.8em;
-}
-
-/* When Mod Mode is active, we will use JS to show these */
-.mod-mode-active .admin-delete-btn {
-    display: inline-block;
-
-}
-
-/* ===========================
-   NIGHT MODE (NSFW BOARDS)
-   =========================== */
-
-body.night-mode {
-    background-color: #1a1a1a; /* Dark Gray Background */
-    color: #cccccc;            /* Light Gray Text */
-}
-
-/* Links need to be lighter to be visible on dark bg */
-body.night-mode a { color: #8cbaff; } 
-body.night-mode a:hover { color: #ff6666; }
-
-/* The Post Form and Replies need dark backgrounds */
-body.night-mode .post-box,
-body.night-mode .post-info,
-body.night-mode .reply {
-    background-color: #2b2b2b;
-    border-color: #444;       /* Darker borders */
-    color: #ddd;
-}
-
-/* Form Headers */
-body.night-mode .form-header {
-    background-color: #900;   /* Darker Red */
-}
-
-/* Inputs (Text boxes) */
-body.night-mode input,
-body.night-mode textarea {
-    background-color: #333;
-    color: white;
-    border: 1px solid #555;
-}
-
-/* Specific text colors */
-body.night-mode .subject { color: #ff8888; } /* Light Red */
-body.night-mode .name { color: #88ff88; }    /* Light Green */
-body.night-mode .post-id { color: #888; }
-
-/* Separator Line */
-body.night-mode .thread-separator {
-    border-bottom-color: #444;
-}
-
-/* Backlinks */
-body.night-mode .backlink {
-    color: #ff8888;
-}
-
-/* LIGHTBOX UPGRADES */
-#lightboxContent {
-    max-width: 90%;
-    max-height: 90%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    height: 100%;
-}
-
-#lbVideo, #lbFrame {
-    max-width: 90vw;
-    max-height: 90vh;
-    box-shadow: 0 0 20px black;
-    background: black;
-}
-
-#lbFrame {
-    width: 800px; /* Default size for YouTube */
-    height: 450px;
-}
-
-/* MEDIA THUMBNAILS */
-.media-container {
+/* =========================================
+   7. MEDIA (IMAGES & VIDEOS) - GLOBAL FIX
+   ========================================= */
+.thread-image, .media-container {
     float: left;
-    margin: 5px 20px 20px 5px;
+    margin: 0 15px 10px 0;
     position: relative;
     cursor: pointer;
     border: 2px solid #000055;
+    line-height: 0;
+    display: inline-block;
 }
 
-/* YouTube Play Button Overlay */
+/* Force all thumbnails to stay within 200px limit */
+.thread-image, 
+.media-container img {
+    display: block;
+    max-width: 200px !important;
+    max-height: 200px !important;
+    width: auto;
+    height: auto;
+}
+
 .play-overlay {
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     background: rgba(0,0,0,0.6);
-    color: white;
-    font-size: 30px;
+    color: white; font-size: 30px;
     width: 50px; height: 50px;
-    text-align: center;
-    line-height: 50px;
-    border-radius: 50%;
-    pointer-events: none; /* Let clicks pass through */
+    text-align: center; line-height: 50px;
+    border-radius: 50%; pointer-events: none;
+    z-index: 2;
 }
 
-/* Direct File (MP4) Placeholder */
 .file-placeholder {
-    width: 200px;
-    height: 150px;
-    background: #000;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    text-align: center;
+    width: 200px; height: 150px;
+    background: #000; color: #fff;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
 }
-.file-ext {
-    font-weight: bold;
-    font-size: 24px;
-    color: #ffcc00;
+.file-ext { font-weight: bold; font-size: 24px; color: #ffcc00; }
+
+/* Lightbox */
+#lightbox {
+    display: none; position: fixed; z-index: 1000;
+    left: 0; top: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.85);
+    justify-content: center; align-items: center;
+}
+#lightboxContent {
+    max-width: 95%; max-height: 95%;
+    display: flex; justify-content: center; align-items: center;
+    width: 100%; height: 100%;
+}
+#lightbox img { max-width: 90%; max-height: 90%; border: 2px solid white; }
+#lbVideo, #lbFrame { max-width: 90vw; max-height: 90vh; background: black; }
+#lbFrame { width: 800px; height: 450px; }
+
+/* =========================================
+   8. ADMIN TOOLS
+   ========================================= */
+.admin-delete-btn {
+    display: none;
+    color: red; font-weight: bold;
+    margin-left: 10px; cursor: pointer;
+    font-size: 0.8em;
+}
+.mod-mode-active .admin-delete-btn { display: inline-block; }
+
+/* =========================================
+   9. NIGHT MODE (NSFW / DARK)
+   ========================================= */
+body.night-mode {
+    background-color: #1a1a1a;
+    color: #cccccc;
+}
+
+body.night-mode a { color: #8cbaff; } 
+body.night-mode a:hover { color: #ff6666; }
+
+body.night-mode .thread-card,
+body.night-mode .reply,
+body.night-mode .post-box {
+    background-color: #2b2b2b;
+    border-color: #444;
+    color: #ddd;
+}
+
+body.night-mode .post-info { border-bottom-color: #444; }
+
+body.night-mode input,
+body.night-mode textarea {
+    background-color: #333; color: white; border: 1px solid #555;
+}
+body.night-mode .form-header { background-color: #900; }
+
+body.night-mode .subject { color: #ff8888; }
+body.night-mode .name { color: #88ff88; }
+body.night-mode .post-id { color: #888; }
+body.night-mode .reply-link { background-color: #444; border-color: #555; color: #aaa; }
+body.night-mode .reply-link:hover { background-color: #555; color: #fff; }
+
+/* =========================================
+   10. MOBILE RESPONSIVENESS
+   ========================================= */
+@media (max-width: 768px) {
+    .thread-card {
+        max-width: 100%;
+        margin-left: -10px;
+        margin-right: -10px;
+        border-left: none;
+        border-right: none;
+        padding: 8px;
+    }
+    
+    .reply {
+        margin-left: 10px;
+        max-width: 95%;
+        min-width: unset; /* Allow it to shrink on small phones */
+    }
+
+    .post-box {
+        width: 95%;
+    }
+
+    .thread-image, .media-container {
+        max-width: 150px; /* Smaller thumbnails on mobile */
+    }
 }

@@ -118,10 +118,16 @@ function tryLogin() {
 const savedKey = localStorage.getItem('adminKey');
 if (savedKey) loadAdminScript(savedKey);
 
-// Shortcuts: Shift+L (Login), Shift+O (Logout)
+// PC Keyboard Shortcuts (Updated to Ctrl + Shift)
 window.addEventListener('keydown', (e) => {
-    if (e.shiftKey && e.key === 'L') tryLogin();
-    if (e.shiftKey && e.key === 'O') {
+    // Login: Ctrl + Shift + L
+    if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
+        e.preventDefault(); // Stops the browser from doing anything else with this combo
+        tryLogin();
+    }
+    // Logout: Ctrl + Shift + O
+    if (e.ctrlKey && e.shiftKey && (e.key === 'O' || e.key === 'o')) {
+        e.preventDefault();
         localStorage.removeItem('adminKey');
         location.reload();
     }
@@ -198,30 +204,37 @@ function loadBoardView() {
 
     const listRef = getBoardRef();
     
-    // Listen for data (Limit 20 threads)
+    // Listen for data (Limit 20 threads, sorted by last update/bump)
     listRef.orderByChild('lastUpdated').limitToLast(20).on('value', (snapshot) => {
         const div = document.getElementById('threadList');
         div.innerHTML = "";
         const data = snapshot.val();
         if (!data) return;
 
-        // Convert to array and reverse (Newest bump first)
+        // 1. Convert to array and reverse (Newest bump first)
         const sortedThreads = [];
         snapshot.forEach((childSnap) => {
             sortedThreads.push({ id: childSnap.key, ...childSnap.val() });
         });
         sortedThreads.reverse();
 
+        // 2. Loop through each thread to build the view
         sortedThreads.forEach((thread) => {
-            // A. Render OP
-            let threadHtml = renderThreadCard(thread.id, thread, true);
+            // NEW: Calculate the total number of replies in this thread
+            const totalReplies = thread.replies ? Object.keys(thread.replies).length : 0;
 
-            // B. Render Latest 2 Replies (Preview)
+            // A. Render the Main Post (OP) 
+            // We pass 'true' for isPreview and the 'totalReplies' count
+            let threadHtml = renderThreadCard(thread.id, thread, true, totalReplies);
+
+            // B. Render the Preview of the latest 2 replies
             if (thread.replies) {
                 const repliesArr = Object.entries(thread.replies);
-                // Sort Oldest -> Newest
+                
+                // Sort replies by timestamp (Oldest to Newest)
                 repliesArr.sort((a, b) => a[1].timestamp - b[1].timestamp);
-                // Get last 2
+                
+                // Take only the last 2 for the board index preview
                 const lastTwo = repliesArr.slice(-2);
                 
                 lastTwo.forEach(([rId, rData]) => {
@@ -229,8 +242,10 @@ function loadBoardView() {
                 });
             }
 
-            // C. Separator
+            // C. Add the separator line between threads
             threadHtml += '<hr class="thread-separator">';
+            
+            // D. Inject into the DOM
             div.innerHTML += threadHtml;
         });
     });
@@ -272,28 +287,50 @@ function loadThreadView(threadId) {
 // 5. RENDER FUNCTIONS
 // ==========================================
 
-function renderThreadCard(id, data, isPreview) {
+function renderThreadCard(id, data, isPreview, replyCount = 0) {
     const date = new Date(data.timestamp).toLocaleString();
-    const replyLink = isPreview ? `<a href="#thread_${id}" class="reply-link">[Reply]</a>` : "";
+    
+    // Reply Link (Now smaller and distinct)
+    const replyLink = isPreview ? `<a href="#thread_${id}" class="reply-link">Reply ➜</a>` : "";
     
     // IP hidden unless Mod
-    const ipHtml = isModMode ? `<span style="color: blue; font-weight:bold;"> [IP: ${data.ip || '?'}]</span>` : "";
+    const ipHtml = isModMode ? `<span style="color: blue; font-weight:bold; font-size:0.8em;"> [IP: ${data.ip || '?'}]</span>` : "";
     
-    // Delete Button (function must be defined in admin script)
-    const delBtn = isModMode ? `<span class="admin-delete-btn" onclick="deleteThread('${id}')">[Delete Thread]</span>` : "";
+    // Delete Button
+    const delBtn = isModMode ? `<span class="admin-delete-btn" onclick="deleteThread('${id}')">[X]</span>` : "";
+
+    // Summary (X Replies) - Moves to bottom
+    let summaryHtml = "";
+    if (isPreview && replyCount > 0) {
+        summaryHtml = `
+        <div class="thread-summary">
+            <span class="reply-count-num">${replyCount}</span> Replies 
+            <span style="float:right; cursor:pointer;" onclick="window.location.hash='#thread_${id}'">Click to View context &#9660;</span>
+        </div>`;
+    }
 
     return `
     <div class="thread-card" id="post_${id}">
-        ${renderMedia(data.image)}
+        <!-- 1. HEADER ROW (Full Width) -->
         <div class="post-info">
             <span class="subject">${data.subject || ""}</span>
             <span class="name">${data.name}</span>
-            <span class="time">${date}</span> ${ipHtml}
+            <span class="time">${date}</span> 
             <span class="post-id" onclick="quotePost('${id}')">No. ${id.substring(1,8)}</span>
-            ${replyLink}
+            ${ipHtml}
             ${delBtn}
+            ${replyLink} <!-- Floats Right -->
         </div>
-        <blockquote class="comment">${formatComment(data.comment)}</blockquote>
+
+        <!-- 2. CONTENT ROW (Image + Text) -->
+        <div class="post-content">
+            ${renderMedia(data.image)}
+            <blockquote class="comment">${formatComment(data.comment)}</blockquote>
+        </div>
+
+        <!-- 3. FOOTER ROW (Replies Count) -->
+        ${summaryHtml}
+        
         <div class="backlink-container" id="backlinks_${id}"></div>
     </div>`;
 }
