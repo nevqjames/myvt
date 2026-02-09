@@ -488,3 +488,62 @@ document.getElementById('postForm').addEventListener('submit', async function(e)
     btn.disabled = false; btn.innerText = "Submit";
     if (!currentThreadId) setTimeout(loadBoardView, 500);
 });
+
+// ==========================================
+// 11. IMGBB IMAGE UPLOAD LOGIC
+// ==========================================
+
+const IMGBB_API_KEY = "6d885f930c72cd28e6520e6c7494704f";
+
+document.addEventListener('DOMContentLoaded', () => {
+    const uploadBtn = document.getElementById('uploadBtn');
+    const hiddenInput = document.getElementById('hiddenFileInput');
+    const urlInput = document.getElementById('imageInput');
+
+    // 1. When user clicks "Upload Image", open the file picker
+    uploadBtn.onclick = () => hiddenInput.click();
+
+    // 2. When a file is selected
+    hiddenInput.onchange = async () => {
+        const file = hiddenInput.files[0];
+        if (!file) return;
+
+        // Visual Feedback
+        const originalText = uploadBtn.innerText;
+        uploadBtn.innerText = "Uploading...";
+        uploadBtn.disabled = true;
+        urlInput.placeholder = "Uploading to ImgBB... Please wait.";
+
+        // Prepare the form data for ImgBB
+        const formData = new FormData();
+        formData.append("image", file);
+
+        try {
+            // Send to ImgBB API
+            const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Success! Paste the DIRECT link into the URL input
+                urlInput.value = result.data.url;
+                urlInput.focus();
+                console.log("Upload Success:", result.data.url);
+            } else {
+                alert("ImgBB Upload Failed: " + result.error.message);
+            }
+        } catch (err) {
+            console.error("Upload Error:", err);
+            alert("Network error during upload. Check your connection.");
+        } finally {
+            // Reset UI
+            uploadBtn.innerText = originalText;
+            uploadBtn.disabled = false;
+            urlInput.placeholder = "Media URL (Image/Video/X/YT)";
+            hiddenInput.value = ""; // Clear the picker for next time
+        }
+    };
+});

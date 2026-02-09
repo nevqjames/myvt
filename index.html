@@ -33,9 +33,16 @@
             <input type="text" id="nameInput" placeholder="Name (Anonymous)" value="Anonymous">
             <input type="text" id="subjectInput" placeholder="Subject">
             <textarea id="commentInput" placeholder="Comment" required></textarea>
-            <input type="url" id="imageInput" placeholder="Media URL (e.g. https://imgur.com/example.jpg, or https://youtu.be/url)">
             
-            <button type="submit">Submit</button>
+            <!-- Updated Media Section -->
+            <div style="display: flex; gap: 5px;">
+                <input type="url" id="imageInput" placeholder="Media URL (Image/Video/X/YT)" style="flex-grow: 1;">
+                <button type="button" id="uploadBtn" style="width: auto; padding: 0 10px; white-space: nowrap;">Upload Image</button>
+            </div>
+            <!-- Hidden File Input -->
+            <input type="file" id="hiddenFileInput" accept="image/*" style="display: none;">
+            
+            <button type="submit">Submit Post</button>
         </form>
     </div>
 

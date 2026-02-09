@@ -47,6 +47,30 @@ form { display: flex; flex-direction: column; gap: 5px; padding: 10px; }
 input, textarea { width: 98%; border: 1px solid #ccc; padding: 2px; }
 textarea { height: 80px; resize: vertical; }
 
+#uploadBtn {
+    background-color: #4CAF50; /* Green for "Upload" */
+    color: white;
+    border: 1px solid #3d8b40;
+    cursor: pointer;
+    font-size: 0.85em;
+    border-radius: 3px;
+}
+
+#uploadBtn:hover {
+    background-color: #45a049;
+}
+
+#uploadBtn:disabled {
+    background-color: #ccc;
+    cursor: wait;
+}
+
+/* Night Mode version */
+body.night-mode #uploadBtn {
+    background-color: #2e7d32;
+    border-color: #1b5e20;
+}
+
 /* =========================================
    4. THREAD CARD LAYOUT
    ========================================= */
