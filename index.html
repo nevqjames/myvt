@@ -63,6 +63,19 @@
         </div>
     </div>
 
+    <!-- NSFW CONTENT GATE -->
+    <div id="nsfwGate" style="display:none;">
+        <div class="gate-box">
+            <h2>⚠️ 18+ ADULT CONTENT WARNING</h2>
+            <p>The board you are trying to access (/<span id="gateBoardName"></span>/) contains <b>Explicit Adult Content (NSFW)</b>.</p>
+            <p>By clicking "Enter", you confirm that you are at least 18 years of age and consent to viewing such material.</p>
+            <div class="gate-buttons">
+                <button onclick="acceptNSFW()" class="btn-enter">I am 18+ / Enter</button>
+                <button onclick="window.location.href='?b=myvt'" class="btn-exit">Take me back</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ADD THIS LINE HERE -->
     <div id="bottom"></div>
 

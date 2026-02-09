@@ -228,6 +228,46 @@ body.night-mode #lbFrame {
 /* =========================================
    9. NIGHT MODE (NSFW / DARK)
    ========================================= */
+
+#nsfwGate {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #1a1a1a; /* Always dark for the gate */
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    text-align: center;
+}
+
+.gate-box {
+    background: #2b2b2b;
+    padding: 30px;
+    border: 2px solid #900;
+    border-radius: 8px;
+    max-width: 400px;
+}
+
+.gate-buttons {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.btn-enter { background: #900; color: white; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
+.btn-exit { background: #444; color: white; border: none; padding: 10px 20px; cursor: pointer; }
+
+/* Ensure the board is hidden when gate is up */
+body.gate-active #boardView, 
+body.gate-active #threadView,
+body.gate-active .header,
+body.gate-active .post-box {
+    display: none !important;
+}
+
 body.night-mode {
     background-color: #1a1a1a;
     color: #cccccc;
@@ -257,6 +297,47 @@ body.night-mode .name { color: #88ff88; }
 body.night-mode .post-id { color: #888; }
 body.night-mode .reply-link { background-color: #444; border-color: #555; color: #aaa; }
 body.night-mode .reply-link:hover { background-color: #555; color: #fff; }
+
+/* =========================================
+   NSFW THUMBNAIL BLUR (AUTO-BLUR)
+   ========================================= */
+
+/* 1. Apply blur to thumbnails in night-mode (NSFW boards) */
+body.night-mode .thread-image,
+body.night-mode .media-container img,
+body.night-mode .file-placeholder {
+    filter: blur(25px); /* Strong blur */
+    transition: filter 0.3s ease, transform 0.3s ease;
+    opacity: 0.7; /* Slightly faded */
+}
+
+/* 2. Reveal on Hover (For PC Users) */
+body.night-mode .thread-image:hover,
+body.night-mode .media-container:hover img,
+body.night-mode .media-container:hover .file-placeholder {
+    filter: blur(0);
+    opacity: 1;
+    transform: scale(1.02); /* Slight zoom to show it's active */
+}
+
+/* 3. Handle the Play Overlay (YouTube/Video) */
+/* We hide the play button until hovered so it doesn't look messy over the blur */
+body.night-mode .media-container .play-overlay {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+body.night-mode .media-container:hover .play-overlay {
+    opacity: 1;
+}
+
+/* 4. IMPORTANT: Ensure the Lightbox is NOT blurred */
+#lightbox img, 
+#lbVideo, 
+#lbFrame {
+    filter: blur(0) !important;
+    opacity: 1 !important;
+}
 
 /* =========================================
    10. MOBILE RESPONSIVENESS
