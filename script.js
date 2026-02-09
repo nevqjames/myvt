@@ -362,15 +362,19 @@ function renderReply(id, data, threadId) {
 function getMediaType(url) {
     if (!url) return null;
     
-    // 1. YouTube (Now supports /live/, /shorts/, /embed/, /v/, and standard)
+    // 1. YouTube
     const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|live|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
     const ytMatch = url.match(ytRegex);
     if (ytMatch) return { type: 'youtube', id: ytMatch[1] };
 
-    // 2. Direct Video (MP4/WebM)
+    // 2. X / Twitter (New)
+    const xRegex = /(?:twitter\.com|x\.com)\/.*\/status\/(\d+)/;
+    const xMatch = url.match(xRegex);
+    if (xMatch) return { type: 'x', id: xMatch[1] };
+
+    // 3. Direct Video
     if (url.match(/\.(mp4|webm|ogg)$/i)) return { type: 'video', url: url };
-    
-    // 3. Image (Default)
+
     return { type: 'image', url: url };
 }
 
@@ -382,10 +386,18 @@ function renderMedia(url) {
         const thumbUrl = `https://img.youtube.com/vi/${media.id}/0.jpg`;
         return `
         <div class="media-container" onclick="openLightbox('youtube', '${media.id}')">
-            <img src="${thumbUrl}" style="max-width:200px; max-height:200px;">
+            <img src="${thumbUrl}">
             <div class="play-overlay">▶</div>
         </div>`;
     } 
+    else if (media.type === 'x') {
+        // We show a blue/black X placeholder since thumbnails are hard to get
+        return `
+        <div class="media-container file-placeholder x-placeholder" onclick="openLightbox('x', '${media.id}')">
+            <div class="file-ext" style="color:#1DA1F2">𝕏</div>
+            <div style="font-size:10px">Click to load Post</div>
+        </div>`;
+    }
     else if (media.type === 'video') {
         return `
         <div class="media-container file-placeholder" onclick="openLightbox('video', '${media.url}')">
@@ -404,7 +416,6 @@ function openLightbox(type, content) {
     const vid = document.getElementById('lbVideo');
     const frame = document.getElementById('lbFrame');
 
-    // Reset display
     img.style.display = 'none'; img.src = "";
     vid.style.display = 'none'; vid.src = "";
     frame.style.display = 'none'; frame.src = "";
@@ -418,6 +429,12 @@ function openLightbox(type, content) {
     } else if (type === 'youtube') {
         frame.src = `https://www.youtube.com/embed/${content}?autoplay=1`;
         frame.style.display = 'block';
+    } else if (type === 'x') {
+        // Use the official Twitter embed frame
+        frame.src = `https://platform.twitter.com/embed/Tweet.html?id=${content}&theme=dark`;
+        frame.style.display = 'block';
+        // X embeds usually look better in a narrower frame
+        frame.style.width = "550px"; 
     }
     lb.style.display = 'flex';
 }
@@ -498,7 +515,11 @@ function validateMediaUrl(url) {
         // 2. Check Video Extension
         if (url.match(/\.(mp4|webm|ogg)$/i)) { resolve(true); return; }
 
-        // 3. Fallback: Check if Image
+        // 3. Check X / Twitter Regex (New)
+        const xRegex = /(?:twitter\.com|x\.com)\/.*\/status\/(\d+)/;
+        if (url.match(xRegex)) { resolve(true); return; }
+
+        // 4. Fallback: Check if Image
         const img = new Image();
         img.onload = () => resolve(true);
         img.onerror = () => resolve(false);

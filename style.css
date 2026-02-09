@@ -187,6 +187,17 @@ textarea { height: 80px; resize: vertical; }
 }
 .file-ext { font-weight: bold; font-size: 24px; color: #ffcc00; }
 
+/* X (Twitter) Placeholder Styling */
+.x-placeholder {
+    background-color: #000; /* Dark background like X */
+    border: 2px solid #1DA1F2; /* Twitter Blue accent */
+}
+
+/* Adjust Iframe size for X posts which are usually tall */
+body.night-mode #lbFrame {
+    background-color: #000;
+}
+
 /* Lightbox */
 #lightbox {
     display: none; position: fixed; z-index: 1000;
