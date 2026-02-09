@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>myvt - Malaysian VTuber Imageboard</title>
+    <title>MYVT - Malaysian VTuber Board</title>
     <link rel="stylesheet" href="style.css">
     
     <!-- FIREBASE SDK -->
@@ -11,35 +11,39 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-    <!-- 1. HEADER (Always Visible) -->
+    <!-- 1. HEADER (Styled for P3R/P5 Shadows) -->
     <div class="header">
-        <h1 id="boardTitle">MYVT - Malaysian VTuber Board</h1>
-        <div class="nav-boards" id="navBoards"></div>
+        <h1 id="boardTitle">MYVT - Portal</h1>
+        <div class="nav-boards" id="navBoards">
+            <!-- Dynamic board links injected here by JS -->
+        </div>
         <div class="nav-site">
-            [ <a href="/">Home</a> ] 
+            [ <a href="index.html">Home</a> ] 
             [ <a href="#bottom">Bottom</a> ]
         </div>
     </div>
 
-    <!-- 2. POST FORM (Hidden on Home) -->
+    <!-- 2. POST FORM (Wrapped in stylized card) -->
     <div id="formWrapper" class="post-box" style="display:none;">
         <div class="form-header" id="formTitle">Create New Thread</div>
         <form id="postForm">
             <input type="text" id="nameInput" placeholder="Name (Anonymous)" value="Anonymous">
             <input type="text" id="subjectInput" placeholder="Subject">
-            <textarea id="commentInput" placeholder="Comment" required></textarea>
-            <div style="display: flex; gap: 5px;">
-                <input type="url" id="imageInput" placeholder="Media URL (Image/Video/X/YT)" style="flex-grow: 1;">
+            <textarea id="commentInput" placeholder="Write your comment..." required></textarea>
+            
+            <div style="display: flex; gap: 8px;">
+                <input type="url" id="imageInput" placeholder="Media URL (X/YT/Direct Link)" style="flex-grow: 1;">
                 <button type="button" id="uploadBtn">Upload Image</button>
             </div>
+            
             <input type="file" id="hiddenFileInput" accept="image/*" style="display: none;">
             <button type="submit" id="submitBtn">Submit Post</button>
         </form>
     </div>
 
-    <hr id="topDivider">
+    <hr id="topDivider" style="display:none; border-color: var(--border-color); margin: 20px 0;">
 
-    <!-- 3. VIEW: HOME PAGE -->
+    <!-- 3. VIEW: HOME PAGE (Portal View) -->
     <div id="homeView" class="home-container" style="display:none;">
         <div class="welcome-section">
             <h2>Selamat Datang to /myvt/</h2>
@@ -50,33 +54,34 @@
             <div class="ins-card">
                 <h3>🍱 Board Directory</h3>
                 <div class="home-links">
-                    <a href="?b=myvt">/myvt/ - MY VTubers</a>
-                    <a href="?b=vt">/vt/ - Global/SEA VT</a>
-                    <a href="?b=v">/v/ - Video Gaming</a>
+                    <a href="?b=myvt">/myvt/ - Malaysian VTubers</a>
+                    <a href="?b=vt">/vt/ - Global/SEA VTubers</a>
+                    <a href="?b=v">/v/ - Virtual Gaming</a>
                     <a href="?b=acg">/acg/ - Anime & Events</a>
-                    <a href="?b=art">/art/ - Fanart/Assets</a>
+                    <a href="?b=art">/art/ - Fanart & Assets</a>
                     <a href="?b=tech">/tech/ - Tech Support</a>
                     <a href="?b=mamak">/mamak/ - General & Off-Topic</a>
                 </div>
             </div>
+            
             <div class="ins-card">
                 <h3>📖 How to Use</h3>
                 <ul>
-                    <li><b>Start a Thread:</b> Pick a board, fill the form at the top, and attach media.</li>
-                    <li><b>Replying:</b> Click <b>[Reply ➜]</b> or a Post ID (No. XXXXXXX) to quote.</li>
-                    <li><b>Media:</b> We support direct image uploads, YouTube links, and X (Twitter) links.</li>
-                    <li><b>Bumping:</b> New replies push threads to the top of the board.</li>
+                    <li><b>Start a Thread:</b> Pick a board, fill the form, and attach media.</li>
+                    <li><b>Replying:</b> Click <b>[Reply ➜]</b> or a Post ID to quote someone.</li>
+                    <li><b>Media:</b> We support YouTube, X (Twitter), and direct images.</li>
+                    <li><b>Bumping:</b> New activity brings threads to the top.</li>
                 </ul>
             </div>
         </div>
 
         <div class="rules-box">
             <h3>📜 Rules</h3>
-            <p>1. No illegal content (CSAM, etc). 2. No spam or commercial ads. 3. Be civil with local talents.</p>
+            <p>1. No illegal content (CSAM). 2. No spam or commercial advertising. 3. Be civil regarding local talents and their identities.</p>
         </div>
 
         <div class="footer-secret">
-            <a href="?b=myvth" class="secret-link">.</a> <!-- The semi-hidden entry -->
+            <a href="?b=myvth" class="secret-link">.</a> <!-- Hidden entry point -->
         </div>
     </div>
 
@@ -87,18 +92,23 @@
 
     <!-- 5. VIEW: SINGLE THREAD -->
     <div id="threadView" style="display:none;">
-        <div class="back-link">[ <a href="#" onclick="window.location.hash=''; return false;">Return to Board</a> ]</div>
+        <div style="max-width: 850px; margin: 0 auto 15px auto;">
+            <a href="#" onclick="window.location.hash=''; return false;" class="reply-link" style="float:none; display:inline-block;"> ⬅ Return to Board</a>
+        </div>
         <div id="opContainer"></div>
         <div id="repliesContainer"></div>
     </div>
 
-    <!-- 6. UTILS -->
+    <!-- 6. UTILS (NSFW Gate & Lightbox) -->
     <div id="nsfwGate" style="display:none;">
         <div class="gate-box">
             <h2>⚠️ 18+ ADULT CONTENT WARNING</h2>
             <p>This board (/<span id="gateBoardName"></span>/) contains <b>Explicit Adult Content</b>.</p>
-            <button onclick="acceptNSFW()" class="btn-enter">I am 18+ / Enter</button>
-            <button onclick="window.location.href='index.html'" class="btn-exit">Exit</button>
+            <p>You must be at least 18 years of age to enter.</p>
+            <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                <button onclick="acceptNSFW()" class="btn-enter">I am 18+ / Enter</button>
+                <button onclick="window.location.href='index.html'" style="padding:10px 20px; border-radius:5px; cursor:pointer;">Exit</button>
+            </div>
         </div>
     </div>
 
@@ -109,8 +119,9 @@
             <iframe id="lbFrame" frameborder="0" allowfullscreen style="display:none"></iframe>
         </div>
     </div>
+
     <div id="bottom"></div>
+    
     <script src="script.js"></script>
 </body>
-
 </html>
