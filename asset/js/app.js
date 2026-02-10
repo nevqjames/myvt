@@ -128,20 +128,41 @@ function loadThreadView(threadId) {
     document.getElementById('formTitle').innerText = "Reply to Thread " + threadId.substring(1,8);
     document.getElementById('subjectInput').style.display = "none";
 
-    // Double Trigger Backlinks
+    // 1. Load OP (Original Post)
     database.ref('boards/' + currentBoard + '/threads/' + threadId).on('value', (snap) => {
         const op = snap.val();
-        if(!op) { if(window.location.hash.includes(threadId)) window.location.hash = ""; return; }
+        if(!op) { 
+            // Handle deletion
+            if(window.location.hash.includes(threadId)) window.location.hash = ""; 
+            return; 
+        }
         document.getElementById('opContainer').innerHTML = renderThreadCard(threadId, op, false);
-        setTimeout(generateBacklinks, 200);
+        
+        // Trigger backlinks immediately after OP loads
+        generateBacklinks();
     });
 
+    // 2. Load Replies (The part that updates live)
     database.ref('boards/' + currentBoard + '/threads/' + threadId + '/replies').on('value', (snapshot) => {
         const div = document.getElementById('repliesContainer');
         div.innerHTML = "";
         const data = snapshot.val();
-        if (data) Object.entries(data).forEach(([id, reply]) => { div.innerHTML += renderReply(id, reply, threadId); });
-        setTimeout(generateBacklinks, 200);
+        
+        if (data) {
+            Object.entries(data).forEach(([id, reply]) => {
+                div.innerHTML += renderReply(id, reply, threadId);
+            });
+        }
+
+        // --- FIX: TRIPLE TRIGGER STRATEGY ---
+        // 1. Run immediately (for fast PCs)
+        generateBacklinks(); 
+        
+        // 2. Run after 100ms (standard delay)
+        setTimeout(generateBacklinks, 100); 
+        
+        // 3. Run after 500ms (catch-all for laggy mobile rendering)
+        setTimeout(generateBacklinks, 500);
     });
 }
 

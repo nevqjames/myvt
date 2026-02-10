@@ -142,11 +142,15 @@ textarea { height: 80px; resize: vertical; }
     background-color: var(--reply-bg);
     border: 1px solid var(--border-color);
     border-radius: 12px;
+    
+    /* Indent relative to the container */
     margin: 10px 0 10px 40px; 
     padding: 12px;
-    display: table;
-    max-width: calc(100% - 40px);
-    min-width: 300px;
+    
+    /* WIDTH FIX: Changed from 'table' to 'block' */
+    display: block; 
+    width: auto; /* Automatically fills the remaining space to the right */
+    
     overflow: hidden; /* Clearfix for media */
     box-shadow: 2px 2px 8px rgba(0,0,0,0.05);
 }

@@ -47,32 +47,46 @@ function unhighlightPost(id) {
 }
 
 function generateBacklinks() {
-    document.querySelectorAll('.backlink-container').forEach(el => el.innerHTML = "");
-    const allComments = document.querySelectorAll('.comment');
+    // 1. Find all quotes (>>ID) on the page
+    const allQuotes = document.querySelectorAll('.quote-link');
     
-    allComments.forEach(commentDiv => {
-        const replierDiv = commentDiv.closest('[id^="post_"]'); 
+    allQuotes.forEach(link => {
+        // Get the ID of the post DOING the quoting (The Child)
+        const replierDiv = link.closest('[id^="post_"]');
         if (!replierDiv) return;
         const replierId = replierDiv.id.replace("post_", "");
+
+        // Get the ID of the post BEING quoted (The Parent)
+        const href = link.getAttribute('href');
+        if (!href || !href.includes('#post_')) return;
+        const targetId = href.split('#post_')[1];
+
+        // 2. Find the Parent's backlink container
+        const container = document.getElementById('backlinks_' + targetId);
         
-        const links = commentDiv.querySelectorAll('.quote-link');
-        links.forEach(link => {
-            const href = link.getAttribute('href');
-            if(!href || !href.includes('#post_')) return;
-            const targetId = href.split('#post_')[1];
-            
-            const container = document.getElementById('backlinks_' + targetId);
-            if (container) {
-                // Prevent duplicate links
-                if (!container.querySelector(`[href="#post_${replierId}"]`)) {
-                    if (container.childElementCount < 10) {
-                        const displayId = replierId.substring(1,8);
-                        container.innerHTML += `<a href="#post_${replierId}" class="backlink" 
-                            onmouseenter="highlightPost('${replierId}')" 
-                            onmouseleave="unhighlightPost('${replierId}')">&gt;&gt;${displayId}</a>`;
-                    }
+        if (container) {
+            // 3. CHECK: Does this backlink ALREADY exist?
+            // We search for an existing link pointing to the Replier ID
+            const exists = container.querySelector(`a[href="#post_${replierId}"]`);
+
+            if (!exists) {
+                // Limit to 10 backlinks to prevent overflow
+                if (container.childElementCount < 10) {
+                    const displayId = replierId.substring(1, 8);
+                    
+                    // Create the little red link
+                    const newLink = document.createElement('a');
+                    newLink.href = `#post_${replierId}`;
+                    newLink.className = 'backlink';
+                    newLink.innerHTML = `&gt;&gt;${displayId}`;
+                    
+                    // Add Hover Effects
+                    newLink.onmouseenter = () => highlightPost(replierId);
+                    newLink.onmouseleave = () => unhighlightPost(replierId);
+                    
+                    container.appendChild(newLink);
                 }
             }
-        });
+        }
     });
 }
