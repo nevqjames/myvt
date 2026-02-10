@@ -4,7 +4,7 @@
 
 // --- NSFW GATE ---
 function checkNSFWGate() {
-    if (currentBoard && BOARDS[currentBoard].type === 'nsfw') {
+    if (currentBoard && BOARDS[currentBoard] && BOARDS[currentBoard].type === 'nsfw') {
         if (!sessionStorage.getItem('nsfw_consent')) {
             document.body.classList.add('gate-active');
             document.getElementById('nsfwGate').style.display = 'flex';
@@ -39,7 +39,7 @@ function router() {
 
     document.body.classList.remove('night-mode');
 
-    // 1. HOME PAGE
+    // 1. HOME PAGE (No Board Selected)
     if (!currentBoard || !BOARDS[currentBoard]) {
         homeView.style.display = "block";
         boardView.style.display = "none";
@@ -53,55 +53,110 @@ function router() {
 
     // 2. BOARD / THREAD MODE
     homeView.style.display = "none";
-    formWrapper.style.display = "block";
     topDivider.style.display = "block";
     
+    // Set Titles & Theme
     document.title = BOARDS[currentBoard].title;
     document.getElementById('boardTitle').innerText = BOARDS[currentBoard].title;
     
-    // Apply P5 Night Mode
     if (BOARDS[currentBoard].type === 'nsfw') document.body.classList.add('night-mode');
 
+    // Check Gate
     if (!checkNSFWGate()) return;
 
+    // Detect Archive Mode
+    const urlParam = new URLSearchParams(window.location.search);
+    const isArchiveView = urlParam.get('view') === 'archive';
+
     if (hash.startsWith("#thread_")) {
+        // Thread Mode
+        formWrapper.style.display = "block"; // Default show, hidden later if locked
         currentThreadId = hash.replace("#thread_", "");
         loadThreadView(currentThreadId);
     } else {
+        // Board Mode
         currentThreadId = null;
-        loadBoardView();
+        // Hide "New Thread" form if in Archive Mode
+        formWrapper.style.display = isArchiveView ? "none" : "block"; 
+        loadBoardView(isArchiveView);
     }
 }
 
-// Build Header Links
+// --- DYNAMIC HEADER ---
 window.addEventListener('DOMContentLoaded', () => {
     const navContainer = document.getElementById('navBoards');
-    if (!currentBoard || !BOARDS[currentBoard]) return; // Don't build nav on home
+    if (!currentBoard || !BOARDS[currentBoard]) return; 
     
     const currentType = BOARDS[currentBoard].type;
     let html = "";
+    
+    // 1. Board Links
     for (const [key, data] of Object.entries(BOARDS)) {
         if (data.type === currentType) {
             const isActive = (key === currentBoard) ? 'style="font-weight:900; border-bottom: 2px solid;"' : '';
             html += `[ <a href="?b=${key}" ${isActive}>/${key}/</a> ] `;
         }
     }
-    if (currentType === 'nsfw') html += `<br><span style="font-size:0.8em;">[ <a href="?b=myvt">Return to Surface</a> ]</span>`;
+
+    // 2. Archive Toggle Links
+    html += `<div style="margin-top:8px; font-size:0.9em; opacity:0.9;">`;
+    const urlParam = new URLSearchParams(window.location.search);
+    const isArchived = urlParam.get('view') === 'archive';
+    
+    if (isArchived) {
+        html += `[ <a href="?b=${currentBoard}">Current Threads</a> ] 
+                 [ <span style="font-weight:bold; color:var(--header-color);">Archives</span> ]`;
+    } else {
+        html += `[ <span style="font-weight:bold; color:var(--header-color);">Current Threads</span> ] 
+                 [ <a href="?b=${currentBoard}&view=archive">Archives</a> ]`;
+    }
+    html += `</div>`;
+
+    // 3. Return Link (NSFW only)
+    if (currentType === 'nsfw') html += `<div style="font-size:0.8em; margin-top:5px;">[ <a href="?b=myvt">Return to Surface</a> ]</div>`;
+    
     navContainer.innerHTML = html;
 });
 
-// --- VIEW LOADERS ---
-function loadBoardView() {
+// ==========================================
+// 5. VIEW LOGIC
+// ==========================================
+
+function loadBoardView(isArchiveMode) {
     document.getElementById('boardView').style.display = "block";
     document.getElementById('threadView').style.display = "none";
     document.getElementById('formTitle').innerText = "Create New Thread";
     document.getElementById('subjectInput').style.display = "block";
 
-    getBoardRef().orderByChild('lastUpdated').limitToLast(20).on('value', (snapshot) => {
+    if (isArchiveMode) {
+        document.getElementById('boardTitle').innerHTML += ` <span style="color:red; font-size:0.6em;">[ARCHIVE]</span>`;
+    }
+
+    // --- ARCHIVE FILTER LOGIC ---
+    const now = Date.now();
+    // Default to 3 days if config missing
+    const limit = (typeof ARCHIVE_TIME_MS !== 'undefined') ? ARCHIVE_TIME_MS : 259200000; 
+    const cutoff = now - limit;
+
+    let query = getBoardRef().orderByChild('lastUpdated');
+
+    if (isArchiveMode) {
+        // Get Old Threads
+        query = query.endAt(cutoff).limitToLast(50);
+    } else {
+        // Get Active Threads
+        query = query.startAt(cutoff);
+    }
+
+    query.on('value', (snapshot) => {
         const div = document.getElementById('threadList');
         div.innerHTML = "";
         const data = snapshot.val();
-        if (!data) return;
+        
+        if (!data) {
+            div.innerHTML = `<div style="text-align:center; padding:20px; color:#666;">No threads found in this view.</div>`;
+            return;
+        }
 
         const sortedThreads = [];
         snapshot.forEach((childSnap) => { sortedThreads.push({ id: childSnap.key, ...childSnap.val() }); });
@@ -128,45 +183,56 @@ function loadThreadView(threadId) {
     document.getElementById('formTitle').innerText = "Reply to Thread " + threadId.substring(1,8);
     document.getElementById('subjectInput').style.display = "none";
 
-    // 1. Load OP (Original Post)
+    // 1. Load OP
     database.ref('boards/' + currentBoard + '/threads/' + threadId).on('value', (snap) => {
         const op = snap.val();
         if(!op) { 
-            // Handle deletion
             if(window.location.hash.includes(threadId)) window.location.hash = ""; 
             return; 
         }
-        document.getElementById('opContainer').innerHTML = renderThreadCard(threadId, op, false);
         
-        // Trigger backlinks immediately after OP loads
-        generateBacklinks();
+        document.getElementById('opContainer').innerHTML = renderThreadCard(threadId, op, false);
+
+        // --- CHECK ARCHIVE LOCK ---
+        const limit = (typeof ARCHIVE_TIME_MS !== 'undefined') ? ARCHIVE_TIME_MS : 259200000;
+        const timeDiff = Date.now() - (op.lastUpdated || op.timestamp);
+        const formDiv = document.getElementById('formWrapper');
+
+        // Lock form if old AND not admin
+        if (timeDiff > limit && !isModMode) {
+            formDiv.innerHTML = `<div class="post-box" style="text-align:center; padding:20px; font-weight:bold; color:#777; background:var(--reply-bg);">⛔ This thread is archived and locked.</div>`;
+        } else {
+            // If the form was previously replaced by the lock message, we might need to reload 
+            // to get the form back when switching threads.
+            // For now, if the ID 'postForm' is missing, simply reload page to restore it.
+            if (!document.getElementById('postForm')) location.reload();
+        }
+
+        setTimeout(generateBacklinks, 200);
     });
 
-    // 2. Load Replies (The part that updates live)
+    // 2. Load Replies
     database.ref('boards/' + currentBoard + '/threads/' + threadId + '/replies').on('value', (snapshot) => {
         const div = document.getElementById('repliesContainer');
         div.innerHTML = "";
         const data = snapshot.val();
-        
         if (data) {
             Object.entries(data).forEach(([id, reply]) => {
                 div.innerHTML += renderReply(id, reply, threadId);
             });
         }
-
-        // --- FIX: TRIPLE TRIGGER STRATEGY ---
-        // 1. Run immediately (for fast PCs)
-        generateBacklinks(); 
         
-        // 2. Run after 100ms (standard delay)
-        setTimeout(generateBacklinks, 100); 
-        
-        // 3. Run after 500ms (catch-all for laggy mobile rendering)
+        // Triple Trigger Backlinks (Fix for Race Conditions)
+        generateBacklinks();
+        setTimeout(generateBacklinks, 100);
         setTimeout(generateBacklinks, 500);
     });
 }
 
-// --- RENDERERS ---
+// ==========================================
+// 6. RENDERERS (UI)
+// ==========================================
+
 function renderThreadCard(id, data, isPreview, replyCount = 0) {
     const date = new Date(data.timestamp).toLocaleString();
     const replyLink = isPreview ? `<a href="#thread_${id}" class="reply-link">Reply ➜</a>` : "";
@@ -219,7 +285,10 @@ function renderReply(id, data, threadId) {
     </div>`;
 }
 
-// --- SUBMIT ---
+// ==========================================
+// 7. SUBMIT LOGIC
+// ==========================================
+
 document.getElementById('postForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const comment = document.getElementById('commentInput').value;
@@ -227,7 +296,7 @@ document.getElementById('postForm').addEventListener('submit', async function(e)
     if (!comment) return alert("Comment required");
 
     const btn = document.getElementById('submitBtn');
-    btn.disabled = true; btn.innerText = "Sending...";
+    btn.disabled = true; btn.innerText = "Processing...";
 
     if (!(await validateMediaUrl(image))) { 
         alert("Invalid URL"); 
@@ -253,6 +322,7 @@ document.getElementById('postForm').addEventListener('submit', async function(e)
     } catch(e) { alert("Error: " + e.message); }
     finally { 
         btn.disabled = false; btn.innerText = "Submit Post"; 
-        if (!currentThreadId) setTimeout(loadBoardView, 500); 
+        // If we are on board index, reload to see new thread
+        if (!currentThreadId) setTimeout(() => loadBoardView(), 500); 
     }
 });

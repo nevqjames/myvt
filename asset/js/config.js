@@ -57,3 +57,6 @@ let isModMode = false; // Defined here so all files can see it
 function getBoardRef() {
     return database.ref('boards/' + currentBoard + '/threads');
 }
+
+// Add this at the bottom of config.js
+const ARCHIVE_TIME_MS = 3 * 24 * 60 * 60 * 1000; // 3 Days
