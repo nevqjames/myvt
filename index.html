@@ -4,18 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MYVT - Malaysian VTuber Board</title>
-    <link rel="stylesheet" href="style.css">
+    
+    <!-- LOAD CSS (Order matters!) -->
+    <!-- 1. Core: Variables, Resets, Typography -->
+    <link rel="stylesheet" href="asset/css/core.css">
+    <!-- 2. Layout: Positioning, Grid, Cards, Mobile -->
+    <link rel="stylesheet" href="asset/css/layout.css">
+    <!-- 3. Themes: Night Mode, P5 Styling, Blur Effects -->
+    <link rel="stylesheet" href="asset/css/themes.css">
     
     <!-- FIREBASE SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-    <!-- 1. HEADER (Styled for P3R/P5 Shadows) -->
+    <!-- 1. HEADER (Persona 3 Reload Styled) -->
     <div class="header">
         <h1 id="boardTitle">MYVT - Portal</h1>
         <div class="nav-boards" id="navBoards">
-            <!-- Dynamic board links injected here by JS -->
+            <!-- Dynamic board links injected by JS -->
         </div>
         <div class="nav-site">
             [ <a href="index.html">Home</a> ] 
@@ -23,7 +30,7 @@
         </div>
     </div>
 
-    <!-- 2. POST FORM (Wrapped in stylized card) -->
+    <!-- 2. POST FORM (Wrapped in stylized container) -->
     <div id="formWrapper" class="post-box" style="display:none;">
         <div class="form-header" id="formTitle">Create New Thread</div>
         <form id="postForm">
@@ -56,7 +63,7 @@
                 <div class="home-links">
                     <a href="?b=myvt">/myvt/ - Malaysian VTubers</a>
                     <a href="?b=vt">/vt/ - Global/SEA VTubers</a>
-                    <a href="?b=v">/v/ - Virtual Gaming</a>
+                    <a href="?b=v">/v/ - Video Gaming</a>
                     <a href="?b=acg">/acg/ - Anime & Events</a>
                     <a href="?b=art">/art/ - Fanart & Assets</a>
                     <a href="?b=tech">/tech/ - Tech Support</a>
@@ -81,7 +88,7 @@
         </div>
 
         <div class="footer-secret">
-            <a href="?b=myvth" class="secret-link">.</a> <!-- Hidden entry point -->
+            <a href="?b=myvth" class="secret-link">.</a> <!-- Hidden Entry -->
         </div>
     </div>
 
@@ -92,7 +99,7 @@
 
     <!-- 5. VIEW: SINGLE THREAD -->
     <div id="threadView" style="display:none;">
-        <div style="max-width: 850px; margin: 0 auto 15px auto;">
+        <div style="max-width: 1000px; margin: 0 auto 15px auto;">
             <a href="#" onclick="window.location.hash=''; return false;" class="reply-link" style="float:none; display:inline-block;"> ⬅ Return to Board</a>
         </div>
         <div id="opContainer"></div>
@@ -107,7 +114,7 @@
             <p>You must be at least 18 years of age to enter.</p>
             <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
                 <button onclick="acceptNSFW()" class="btn-enter">I am 18+ / Enter</button>
-                <button onclick="window.location.href='index.html'" style="padding:10px 20px; border-radius:5px; cursor:pointer;">Exit</button>
+                <button onclick="window.location.href='index.html'" class="btn-exit">Exit</button>
             </div>
         </div>
     </div>
@@ -122,6 +129,11 @@
 
     <div id="bottom"></div>
     
-    <script src="script.js"></script>
+    <!-- LOAD SCRIPTS (ORDER MATTERS) -->
+    <script src="asset/js/config.js"></script>
+    <script src="asset/js/utils.js"></script>
+    <script src="asset/js/media.js"></script>
+    <script src="asset/js/app.js"></script>
+    <script src="asset/js/admin.js"></script>
 </body>
 </html>
