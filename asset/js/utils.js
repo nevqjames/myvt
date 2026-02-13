@@ -65,46 +65,51 @@ function unhighlightPost(id) {
 }
 
 function generateBacklinks() {
-    // 1. Find all quotes (>>ID) on the page
-    const allQuotes = document.querySelectorAll('.quote-link');
+    // 1. Clear ALL existing backlinks first. 
+    // This ensures we start fresh and catch updates without duplication logic issues.
+    document.querySelectorAll('.backlink-container').forEach(el => el.innerHTML = "");
+
+    // 2. Scan every comment on the page
+    const allComments = document.querySelectorAll('.comment');
     
-    allQuotes.forEach(link => {
-        // Get the ID of the post DOING the quoting (The Child)
-        const replierDiv = link.closest('[id^="post_"]');
+    allComments.forEach(commentDiv => {
+        // Identify the Replier (The Child)
+        const replierDiv = commentDiv.closest('[id^="post_"]'); 
         if (!replierDiv) return;
         const replierId = replierDiv.id.replace("post_", "");
 
-        // Get the ID of the post BEING quoted (The Parent)
-        const href = link.getAttribute('href');
-        if (!href || !href.includes('#post_')) return;
-        const targetId = href.split('#post_')[1];
-
-        // 2. Find the Parent's backlink container
-        const container = document.getElementById('backlinks_' + targetId);
+        // Find every quote (>>ID) in this comment
+        const links = commentDiv.querySelectorAll('.quote-link');
         
-        if (container) {
-            // 3. CHECK: Does this backlink ALREADY exist?
-            // We search for an existing link pointing to the Replier ID
-            const exists = container.querySelector(`a[href="#post_${replierId}"]`);
-
-            if (!exists) {
-                // Limit to 10 backlinks to prevent overflow
-                if (container.childElementCount < 10) {
-                    const displayId = replierId.substring(1, 8);
+        links.forEach(link => {
+            // Identify the Target (The Parent)
+            const href = link.getAttribute('href');
+            if(!href || !href.includes('#post_')) return;
+            
+            // Extract pure ID
+            const targetId = href.split('#post_')[1];
+            
+            // 3. Find the container of the Parent post
+            const container = document.getElementById('backlinks_' + targetId);
+            
+            if (container) {
+                // Limit visual clutter (max 15 backlinks)
+                if (container.childElementCount < 15) {
+                    const displayId = replierId.substring(1,8);
                     
-                    // Create the little red link
+                    // Create the link
                     const newLink = document.createElement('a');
                     newLink.href = `#post_${replierId}`;
                     newLink.className = 'backlink';
                     newLink.innerHTML = `&gt;&gt;${displayId}`;
                     
-                    // Add Hover Effects
+                    // Add Highlight Events
                     newLink.onmouseenter = () => highlightPost(replierId);
                     newLink.onmouseleave = () => unhighlightPost(replierId);
                     
                     container.appendChild(newLink);
                 }
             }
-        }
+        });
     });
 }

@@ -123,6 +123,12 @@ window.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 
 function loadBoardView(isArchiveMode) {
+
+    // --- RESET RELOAD FLAG ---
+    // User returned to board, so next time they click a thread, allow a reload again.
+    sessionStorage.removeItem('thread_reloaded');
+    // -------------------------
+
     document.getElementById('boardView').style.display = "block";
     document.getElementById('threadView').style.display = "none";
     document.getElementById('formTitle').innerText = "Create New Thread";
@@ -178,6 +184,15 @@ function loadBoardView(isArchiveMode) {
 }
 
 function loadThreadView(threadId) {
+
+    // --- FORCE SINGLE RELOAD SNIPPET ---
+    // If we haven't reloaded yet for this specific viewing session...
+    if (!sessionStorage.getItem('thread_reloaded')) {
+        sessionStorage.setItem('thread_reloaded', 'true'); // Mark as done
+        window.location.reload(); // Reload the page
+        return; // Stop script execution until reload completes
+    }
+
     document.getElementById('boardView').style.display = "none";
     document.getElementById('threadView').style.display = "block";
     document.getElementById('formTitle').innerText = "Reply to Thread " + threadId.substring(1,8);
@@ -224,7 +239,8 @@ function loadThreadView(threadId) {
     // 2. Load Replies
     database.ref('boards/' + currentBoard + '/threads/' + threadId + '/replies').on('value', (snapshot) => {
         const div = document.getElementById('repliesContainer');
-        div.innerHTML = "";
+        div.innerHTML = ""; // Clear current list
+        
         const data = snapshot.val();
         if (data) {
             Object.entries(data).forEach(([id, reply]) => {
@@ -232,11 +248,14 @@ function loadThreadView(threadId) {
             });
         }
         
-        // Triple Trigger Backlinks (Fix for Race Conditions)
-        generateBacklinks();
+        // --- FIX: Run Backlinks Logic Immediately ---
+        // We run this AFTER the innerHTML is set, so the elements exist.
+        generateBacklinks(); 
+        
+        // Run it again after a tiny delay just in case the DOM was slow to paint (for mobile)
         setTimeout(generateBacklinks, 100);
-        setTimeout(generateBacklinks, 500);
     });
+
 }
 
 // ==========================================
