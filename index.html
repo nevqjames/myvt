@@ -5,12 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MYVT - Malaysian VTuber Board</title>
     
-    <!-- LOAD CSS (Order matters!) -->
-    <!-- 1. Core: Variables, Resets, Typography -->
+    <!-- LOAD CSS -->
     <link rel="stylesheet" href="asset/css/core.css">
-    <!-- 2. Layout: Positioning, Grid, Cards, Mobile -->
     <link rel="stylesheet" href="asset/css/layout.css">
-    <!-- 3. Themes: Night Mode, P5 Styling, Blur Effects -->
     <link rel="stylesheet" href="asset/css/themes.css">
     
     <!-- FIREBASE SDK -->
@@ -18,21 +15,19 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-    <!-- 1. HEADER (Persona 3 Reload Styled) -->
+    <!-- 1. HEADER -->
     <div class="header">
         <h1 id="boardTitle">MYVT - Portal</h1>
-        
-        <!-- Board Links -->
-        <div class="nav-boards" id="navBoards"></div>
-        
-
+        <div class="nav-boards" id="navBoards">
+            <!-- Dynamic board links injected by JS -->
+        </div>
         <div class="nav-site">
             [ <a href="index.html">Home</a> ] 
             [ <a href="#bottom">Bottom</a> ]
         </div>
     </div>
 
-    <!-- 2. POST FORM (Wrapped in stylized container) -->
+    <!-- 2. POST FORM -->
     <div id="formWrapper" class="post-box" style="display:none;">
         <div class="form-header" id="formTitle">Create New Thread</div>
         <form id="postForm">
@@ -63,13 +58,14 @@
             <div class="ins-card">
                 <h3>🍱 Board Directory</h3>
                 <div class="home-links">
-                    <a href="?b=myvt">/myvt/ - Malaysian VTubers</a>
-                    <a href="?b=vt">/vt/ - Global/SEA VTubers</a>
-                    <a href="?b=v">/v/ - Video Gaming</a>
-                    <a href="?b=acg">/acg/ - Anime & Events</a>
-                    <a href="?b=art">/art/ - Fanart & Assets</a>
-                    <a href="?b=tech">/tech/ - Tech Support</a>
-                    <a href="?b=mamak">/mamak/ - General & Off-Topic</a>
+                    <a href="?b=myvt">/myvt/ - MY VTuber</a>
+                    <a href="?b=vt">/vt/ - SEA & Global VTuber</a>
+                    <a href="?b=vg">/vg/ - Video Games</a>
+                    <a href="?b=amg">/amg/ - Anime & Manga</a>
+                    <a href="?b=ca">/ca/ - Cosplay & Art</a>
+                    <a href="?b=tech">/tech/ - Tech Stuff</a>
+                    <a href="?b=mamak">/mamak/ - MY Stuff & Off-topic</a>
+                    <a href="?b=rqr">/rqr/ - Board Request & Report</a>
                 </div>
             </div>
             
@@ -90,7 +86,7 @@
         </div>
 
         <div class="footer-secret">
-            <a href="?b=myvth" class="secret-link">.</a> <!-- Hidden Entry -->
+            <a href="?b=myvth" class="secret-link">.</a> <!-- Hidden entry point -->
         </div>
     </div>
 
