@@ -33,18 +33,22 @@ const database = firebase.database();
 if (isLocal) console.log("%c 🛠️ DEV MODE: Using Test Database ", "background: #222; color: #ffcc00;");
 
 // 2. BOARD DEFINITIONS
+// 2. BOARD DEFINITIONS
 const BOARDS = {
-    // SFW
-    'myvt':  { title: '/myvt/ - Malaysian Virtual Youtubers', type: 'sfw' },
-    'vt':    { title: '/vt/ - Global & SEA VTubers',         type: 'sfw' },
-    'v':     { title: '/v/ - Video Gaming',                  type: 'sfw' },
-    'acg':   { title: '/acg/ - Anime & Events',              type: 'sfw' },
-    'art':   { title: '/art/ - Fanart & Assets',             type: 'sfw' },
-    'tech':  { title: '/tech/ - Rigging & Streaming',        type: 'sfw' },
-    'mamak': { title: '/mamak/ - General / Off-topic',       type: 'sfw' },
-    // NSFW
-    'myvth': { title: '/myvth/ - MY VTuber Hentai',          type: 'nsfw' },
-    'h':     { title: '/h/ - Hentai General',                type: 'nsfw' }
+    // === SFW (Surface) ===
+    'myvt':  { title: '/myvt/ - MY VTuber',                  type: 'sfw' },
+    'vt':    { title: '/vt/ - SEA & Global VTuber',          type: 'sfw' },
+    'vg':    { title: '/vg/ - Video Games',                  type: 'sfw' },
+    'amg':   { title: '/amg/ - Anime & Manga',               type: 'sfw' },
+    'ca':    { title: '/ca/ - Cosplay & Art',                type: 'sfw' },
+    'tech':  { title: '/tech/ - Tech Stuff',                 type: 'sfw' },
+    'mamak': { title: '/mamak/ - MY Stuff & Off-topic',      type: 'sfw' },
+    'rqr':   { title: '/rqr/ - Board Request & Report',      type: 'sfw' },
+
+    // === NSFW (Hidden / Black Boards) ===
+    'myvth': { title: '/myvth/ - MY VTuber Ecchi & H',       type: 'nsfw' },
+    'hm':    { title: '/hm/ - H Media',                      type: 'nsfw' },
+    'hg':    { title: '/hg/ - H Games',                      type: 'nsfw' }
 };
 
 // 3. GLOBAL STATE
