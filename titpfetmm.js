@@ -8,7 +8,6 @@ console.log("Admin Access Granted.");
 // 1. Activate Visual Mod Mode
 isModMode = true;
 document.body.classList.add('mod-mode-active');
-alert("Authentication Successful: Mod Mode Active");
 
 // 2. Refresh the current view to reveal [Delete] buttons immediately
 if (typeof currentThreadId !== 'undefined' && currentThreadId) {
