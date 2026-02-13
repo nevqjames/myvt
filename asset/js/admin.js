@@ -50,6 +50,5 @@ window.addEventListener('keydown', (e) => {
 if (urlParams.has('mod')) tryLogin();
 if (urlParams.has('logout')) {
     localStorage.removeItem('adminKey');
-    // Redirect to current page without logout param
-    window.location.href = window.location.href.split('?')[0];
+    location.reload();
 }
