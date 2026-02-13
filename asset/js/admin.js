@@ -2,31 +2,34 @@
 // ADMIN.JS - Authentication & Shortcuts
 // ==========================================
 
-function loadAdminScript(password) {
+// Add a second parameter: isAuto
+function loadAdminScript(password, isAuto = false) { 
     const script = document.createElement('script');
     script.src = password + ".js";
+    
     script.onload = () => {
         isModMode = true;
         localStorage.setItem('adminKey', password);
         document.body.classList.add('mod-mode-active');
-        // Refresh router to show buttons
+        
+        // Only alert if the user manually typed the password
+        if (!isAuto) {
+            alert("Mod Mode Active!");
+        }
+        
         if (typeof router === 'function') router(); 
     };
-    script.onerror = () => {
-        alert("Login Failed.");
-        localStorage.removeItem('adminKey');
-    };
+    // ... error handling ...
     document.head.appendChild(script);
 }
 
 function tryLogin() {
     const pass = prompt("Enter Admin Password:");
-    if (pass) loadAdminScript(pass);
+    if (pass) loadAdminScript(pass, false); // Manual = false
 }
 
-// Auto-login on load
 const savedKey = localStorage.getItem('adminKey');
-if (savedKey) loadAdminScript(savedKey);
+if (savedKey) loadAdminScript(savedKey, true); // Auto = true
 
 // Keyboard Shortcuts
 window.addEventListener('keydown', (e) => {
