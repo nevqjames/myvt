@@ -126,7 +126,9 @@ function loadBoardView(isArchiveMode) {
 
     // --- RESET RELOAD FLAG ---
     // User returned to board, so next time they click a thread, allow a reload again.
-    sessionStorage.removeItem('thread_reloaded');
+    if (!window.location.hash.startsWith("#thread_")) {
+        sessionStorage.removeItem('thread_reloaded');
+    }
     // -------------------------
 
     document.getElementById('boardView').style.display = "block";
