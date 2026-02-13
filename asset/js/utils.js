@@ -29,11 +29,29 @@ function formatComment(text) {
     return formatted;
 }
 
-function quotePost(id) {
+function quotePost(postId, threadId) {
+    // Scenario 1: We are on the Board View (or a different thread)
+    // We need to jump to the correct thread first.
+    if (!currentThreadId || currentThreadId !== threadId) {
+        // Save the quote to browser memory
+        sessionStorage.setItem('pending_quote', '>>' + postId);
+        
+        // Redirect to the correct thread
+        window.location.hash = '#thread_' + threadId;
+        return;
+    }
+
+    // Scenario 2: We are already in the correct thread
     const box = document.getElementById('commentInput');
-    box.value += `>>${id}\n`;
+    
+    // Add new line if box isn't empty
+    const prefix = box.value.length > 0 ? '\n' : '';
+    
+    box.value += `${prefix}>>${postId}\n`;
     box.focus();
-    if(currentThreadId) document.getElementById('postForm').scrollIntoView();
+    
+    // Scroll to form
+    document.getElementById('postForm').scrollIntoView();
 }
 
 function highlightPost(id) { 

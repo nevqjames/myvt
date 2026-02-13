@@ -193,6 +193,16 @@ function loadThreadView(threadId) {
         
         document.getElementById('opContainer').innerHTML = renderThreadCard(threadId, op, false);
 
+        // --- NEW: CHECK FOR PENDING QUOTES ---
+        // Check if we came here from the Board View with a quote request
+        const pending = sessionStorage.getItem('pending_quote');
+        if (pending) {
+            const box = document.getElementById('commentInput');
+            box.value += pending + '\n';
+            sessionStorage.removeItem('pending_quote'); // Clear it so it doesn't happen again on refresh
+            document.getElementById('postForm').scrollIntoView();
+        }
+
         // --- CHECK ARCHIVE LOCK ---
         const limit = (typeof ARCHIVE_TIME_MS !== 'undefined') ? ARCHIVE_TIME_MS : 259200000;
         const timeDiff = Date.now() - (op.lastUpdated || op.timestamp);
@@ -254,7 +264,7 @@ function renderThreadCard(id, data, isPreview, replyCount = 0) {
             <span class="subject">${data.subject || ""}</span>
             <span class="name">${data.name}</span>
             <span class="time">${date}</span> 
-            <span class="post-id" onclick="quotePost('${id}')">No. ${id.substring(1,8)}</span>
+            <span class="post-id" onclick="quotePost('${id}', '${id}')">No. ${id.substring(1,8)}</span>
             ${ipHtml} ${delBtn} ${replyLink}
         </div>
         <div class="post-content">
@@ -276,7 +286,7 @@ function renderReply(id, data, threadId) {
         <div class="post-info">
             <span class="name">${data.name}</span>
             <span class="time">${date}</span> 
-            <span class="post-id" onclick="quotePost('${id}')">No. ${id.substring(1,8)}</span>
+            <span class="post-id" onclick="quotePost('${id}', '${threadId}')">No. ${id.substring(1,8)}</span>
             ${ipHtml} ${delBtn}
         </div>
         ${renderMedia(data.image)}
