@@ -47,6 +47,7 @@ const BOARDS = {
 
     // === NSFW (Hidden / Black Boards) ===
     'myvth': { title: '/myvth/ - MY VTuber Ecchi & H',       type: 'nsfw' },
+    'vth':   { title: '/vth/ - Vtuber Ecchi & H',            type: 'nsfw' },
     'hm':    { title: '/hm/ - H Media',                      type: 'nsfw' },
     'hg':    { title: '/hg/ - H Games',                      type: 'nsfw' }
 };
