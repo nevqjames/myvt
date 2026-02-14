@@ -317,43 +317,116 @@ function renderReply(id, data, threadId) {
 }
 
 // ==========================================
-// 7. SUBMIT LOGIC
+// 7. SUBMIT LOGIC (With Cooldown & "You" ID Saving)
 // ==========================================
+
+function validateMediaUrl(url) {
+    return new Promise((resolve) => {
+        if (!url) return resolve(true);
+        if (getMediaType(url).type !== 'image') return resolve(true);
+        const img = new Image();
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+        img.src = url;
+        setTimeout(() => resolve(false), 5000);
+    });
+}
 
 document.getElementById('postForm').addEventListener('submit', async function(e) {
     e.preventDefault();
+    
     const comment = document.getElementById('commentInput').value;
     const image = document.getElementById('imageInput').value.trim();
+    const btn = document.getElementById('submitBtn');
+
+    // --- 1. SPAM COOLDOWN ---
+    const now = Date.now(); 
+    const lastPostTime = localStorage.getItem('last_post_time');
+    const COOLDOWN_SECONDS = 15; 
+
+    if (lastPostTime) {
+        const diff = (now - parseInt(lastPostTime)) / 1000;
+        if (diff < COOLDOWN_SECONDS) {
+            const remaining = Math.ceil(COOLDOWN_SECONDS - diff);
+            alert(`Please wait ${remaining} seconds before posting again.`);
+            return;
+        }
+    }
+
     if (!comment) return alert("Comment required");
 
-    const btn = document.getElementById('submitBtn');
-    btn.disabled = true; btn.innerText = "Processing...";
+    btn.disabled = true; 
+    btn.innerText = "Processing...";
 
+    // --- 2. MEDIA VALIDATION ---
     if (!(await validateMediaUrl(image))) { 
         alert("Invalid URL"); 
-        btn.disabled = false; btn.innerText = "Submit Post"; return; 
+        btn.disabled = false; 
+        btn.innerText = "Submit Post"; 
+        return; 
     }
 
     let userIP = "Unknown";
-    try { const resp = await fetch('https://api.ipify.org?format=json'); const data = await resp.json(); userIP = data.ip; } catch (err) {}
+    try { 
+        const resp = await fetch('https://api.ipify.org?format=json'); 
+        const data = await resp.json(); 
+        userIP = data.ip; 
+    } catch (err) {}
 
-    const now = Date.now();
-    const postData = { name: document.getElementById('nameInput').value || "Anonymous", comment, image, timestamp: now, ip: userIP };
+    // --- 3. PREPARE DATA ---
+    const postData = { 
+        name: document.getElementById('nameInput').value || "Anonymous", 
+        comment, 
+        image, 
+        timestamp: now, 
+        ip: userIP 
+    };
 
+    // --- 4. SAVE TO FIREBASE & LOCAL STORAGE ---
     try {
+        // Load existing history of "(You)" posts
+        const MY_POSTS = JSON.parse(localStorage.getItem('my_posts') || "[]");
+
         if (currentThreadId) {
-            await database.ref('boards/' + currentBoard + '/threads/' + currentThreadId + '/replies').push(postData);
+            // CASE A: REPLYING
+            // Push to Firebase and Capture the Reference (newRef)
+            const newRef = await database.ref('boards/' + currentBoard + '/threads/' + currentThreadId + '/replies').push(postData);
+            
+            // Save the new ID to our local history
+            MY_POSTS.push(newRef.key);
+            
+            // Update Bump Time
             await database.ref('boards/' + currentBoard + '/threads/' + currentThreadId).update({ lastUpdated: now });
         } else {
+            // CASE B: NEW THREAD
             postData.subject = document.getElementById('subjectInput').value;
             postData.lastUpdated = now;
-            await getBoardRef().push(postData);
+            
+            // Push to Firebase and Capture Ref
+            const newRef = await getBoardRef().push(postData);
+            
+            // Save the new ID
+            MY_POSTS.push(newRef.key);
         }
-        document.getElementById('commentInput').value = document.getElementById('imageInput').value = document.getElementById('subjectInput').value = "";
-    } catch(e) { alert("Error: " + e.message); }
-    finally { 
-        btn.disabled = false; btn.innerText = "Submit Post"; 
-        // If we are on board index, reload to see new thread
+
+        // Commit the updated list to LocalStorage
+        localStorage.setItem('my_posts', JSON.stringify(MY_POSTS));
+        
+        // Save Cooldown Timestamp
+        localStorage.setItem('last_post_time', now);
+
+        // Reset Form
+        document.getElementById('commentInput').value = "";
+        document.getElementById('imageInput').value = "";
+        document.getElementById('subjectInput').value = "";
+        
+    } catch(e) { 
+        alert("Error: " + e.message); 
+    } finally { 
+        btn.disabled = false; 
+        btn.innerText = "Submit Post"; 
+        
+        // Reload board if we are on the index
         if (!currentThreadId) setTimeout(() => loadBoardView(), 500); 
     }
 });

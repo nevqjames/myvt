@@ -2,6 +2,9 @@
 // UTILS.JS - Helpers & Text Processing
 // ==========================================
 
+// Get list of my own posts from storage
+const MY_POSTS = JSON.parse(localStorage.getItem('my_posts') || "[]");
+
 function escapeHtml(text) {
     if (!text) return "";
     return text
@@ -18,13 +21,24 @@ function formatComment(text) {
     
     // Quote Links (>>ID)
     const quoteRegex = /&gt;&gt;([a-zA-Z0-9\-_]+)/g;
-    formatted = formatted.replace(quoteRegex, (m, id) => 
-        `<a href="#post_${id}" class="quote-link">>>${id.substring(1,8)}</a>`
-    );
+    formatted = formatted.replace(quoteRegex, (m, id) => {
+        // Check if I own this post ID
+        const isMe = MY_POSTS.includes(id);
+        const youTag = isMe ? ` <span style="font-weight:bold; font-style:italic; font-size:0.9em;">(You)</span>` : "";
+        
+        return `<a href="#post_${id}" class="quote-link">>>${id.substring(1,8)}</a>${youTag}`;
+    });
     
-    // Greentext (>text)
+    // 2. NEW: Auto-Linkify URLs (http/https)
+    // Matches http:// or https:// followed by non-whitespace characters
+    const urlRegex = /(https?:\/\/[^\s<]+)/g;
+    formatted = formatted.replace(urlRegex, (url) => {
+        return `<a href="${url}" target="_blank" style="color:var(--main-accent); text-decoration:underline;">${url}</a>`;
+    });
+
+    // 3. Greentext (>text)
     const greenRegex = /^(&gt;[^&].*)$/gm;
-    formatted = formatted.replace(greenRegex, '<span style="color:#2e7d32;">$1</span>'); // Adjusted green for P3R theme
+    formatted = formatted.replace(greenRegex, '<span style="color:#2e7d32;">$1</span>');
     
     return formatted;
 }
