@@ -72,20 +72,21 @@
             <textarea id="commentInput" placeholder="Write your comment..." required></textarea>
             
             <div style="display: flex; gap: 8px;">
-                <input type="url" id="imageInput" placeholder="Media URL (X/YT/Direct Link)" style="flex-grow: 1;">
+                <input type="url" id="imageInput" placeholder="Media URL (Reddit/X/YT/Direct Image or Video Link)" style="flex-grow: 1;">
                 <button type="button" id="uploadBtn">Upload Image</button>
             </div>
+            <div id="mediaDetectedBadge" style="display:none; font-size:0.8em; margin-top:4px; margin-bottom:6px; padding:4px 8px; border-radius:4px; font-weight:bold;"></div>
             
             <!-- Collapsible Media Format Tips -->
             <details class="media-help-drawer">
                 <summary><span>ℹ️ Supported Media &amp; Upload Formats</span></summary>
                 <div class="media-help-content">
                     <ul>
-                        <li><b>Direct Images:</b> Links ending in <code>.jpg</code>, <code>.png</code>, <code>.gif</code>, <code>.webp</code>.</li>
+                        <li><b>Reddit:</b> Direct images (<code>i.redd.it</code>), videos (<code>v.redd.it</code>), or post links (<code>reddit.com/r/.../comments/...</code>, <code>redd.it/...</code>).</li>
+                        <li><b>X (Twitter):</b> Direct post URLs (<code>https://x.com/.../status/...</code>) and twimg images.</li>
+                        <li><b>YouTube:</b> <code>youtube.com/watch?v=...</code>, <code>youtu.be/...</code>, Shorts, or Music.</li>
+                        <li><b>Direct Images &amp; Video:</b> <code>.jpg</code>, <code>.png</code>, <code>.gif</code>, <code>.webp</code>, <code>.mp4</code>, <code>.webm</code>, <code>.mp3</code>.</li>
                         <li><b>Upload Image:</b> Click <b>Upload Image</b> to upload directly from your device (free hosting via ImgBB).</li>
-                        <li><b>YouTube:</b> <code>youtube.com/watch?v=...</code>, <code>youtu.be/...</code>, or Shorts.</li>
-                        <li><b>X (Twitter):</b> Direct post URLs (<code>https://x.com/.../status/...</code>).</li>
-                        <li><b>Direct Video:</b> Video URLs ending in <code>.mp4</code> or <code>.webm</code>.</li>
                     </ul>
                 </div>
             </details>

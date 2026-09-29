@@ -295,7 +295,26 @@ body.night-mode .media-help-drawer .media-help-content code {
     align-items: center; justify-content: center;
 }
 .file-ext { font-weight: bold; font-size: 24px; color: #ffcc00; }
-.x-placeholder { background-color: #000; border: 2px solid #1DA1F2; }
+.x-placeholder {
+    background-color: #000;
+    border: 2px solid #1DA1F2;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.x-placeholder:hover {
+    border-color: #4dc2f8;
+    box-shadow: 0 4px 14px rgba(29, 161, 242, 0.4);
+    transform: scale(1.02);
+}
+.reddit-placeholder {
+    background-color: #1a1a1b;
+    border: 2px solid #FF4500;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.reddit-placeholder:hover {
+    border-color: #ff6a33;
+    box-shadow: 0 4px 14px rgba(255, 69, 0, 0.4);
+    transform: scale(1.02);
+}
 
 /* --- SPECIAL TEXT & LINKBACKS --- */
 .quote-link { 

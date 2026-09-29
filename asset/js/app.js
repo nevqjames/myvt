@@ -699,6 +699,22 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.disabled = true;
         submitBtn.innerText = "Posting...";
 
+        // Validate media URL if provided
+        const mediaVal = imageInput.value.trim();
+        if (mediaVal && typeof validateMediaUrl === 'function') {
+            const check = await validateMediaUrl(mediaVal);
+            if (!check.valid) {
+                if (typeof showToast === 'function') {
+                    showToast(check.error || "Invalid media or image URL.");
+                } else {
+                    alert(check.error || "Invalid media or image URL.");
+                }
+                submitBtn.disabled = false;
+                submitBtn.innerText = currentThreadId ? "Submit Reply" : "Create Thread";
+                return;
+            }
+        }
+
         try {
             if (currentThreadId) {
                 // Reply
@@ -718,6 +734,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     localStorage.setItem('my_posts', JSON.stringify(MY_POSTS));
                     commentInput.value = "";
                     imageInput.value = "";
+                    const badge = document.getElementById('mediaDetectedBadge');
+                    if (badge) { badge.style.display = 'none'; badge.innerHTML = ''; }
                     await loadThreadView(currentThreadId);
                 }
             } else {
@@ -739,6 +757,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     subjectInput.value = "";
                     commentInput.value = "";
                     imageInput.value = "";
+                    const badge = document.getElementById('mediaDetectedBadge');
+                    if (badge) { badge.style.display = 'none'; badge.innerHTML = ''; }
                     // Jump to new thread
                     window.location.hash = `#thread_${res.thread.id}`;
                 }

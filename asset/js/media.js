@@ -1,122 +1,444 @@
 // ==========================================
-// MEDIA.JS - Images, Video, Lightbox, Upload
+// MEDIA.JS - Centralized Media & Embed Engine
+// Handles Images, Video, Audio, YouTube, Twitter/X, Reddit, Lightbox & ImgBB Upload
 // ==========================================
 
 const IMGBB_API_KEY = "6d885f930c72cd28e6520e6c7494704f";
 
-// --- DETECTION & RENDERING ---
+// --- CENTRALIZED MEDIA TYPE DETECTION ---
 function getMediaType(url) {
-    if (!url) return null;
-    const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|live|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-    const xRegex = /(?:twitter\.com|x\.com)\/.*\/status\/(\d+)/;
-    
-    const ytMatch = url.match(ytRegex);
-    const xMatch = url.match(xRegex);
+    if (!url || typeof url !== 'string') return null;
+    const cleanUrl = url.trim();
+    if (!cleanUrl) return null;
 
-    if (ytMatch) return { type: 'youtube', id: ytMatch[1] };
-    if (xMatch) return { type: 'x', id: xMatch[1] };
-    if (url.match(/\.(mp4|webm|ogg)$/i)) return { type: 'video', url: url };
-    
-    return { type: 'image', url: url };
+    // 1. YouTube Detection (standard, shorts, live, embed, youtu.be, music.youtube)
+    const ytRegex = /(?:https?:\/\/)?(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
+    const ytMatch = cleanUrl.match(ytRegex);
+    if (ytMatch) {
+        return { type: 'youtube', id: ytMatch[1], url: cleanUrl };
+    }
+
+    // 2. Twitter / X Detection (handles status URLs with username/handle & tweet ID)
+    const xRegex = /(?:https?:\/\/)?(?:www\.)?(?:twitter\.com|x\.com)\/(?:#!\/)?(?:([a-zA-Z0-9_]+)\/status\/|status\/)(\d+)/i;
+    const xMatch = cleanUrl.match(xRegex);
+    if (xMatch) {
+        return { 
+            type: 'x', 
+            handle: xMatch[1] && xMatch[1].toLowerCase() !== 'status' ? xMatch[1] : null, 
+            id: xMatch[2], 
+            url: cleanUrl 
+        };
+    }
+
+    // Twitter CDN Images (pbs.twimg.com)
+    if (cleanUrl.match(/(?:https?:\/\/)?pbs\.twimg\.com\/media\/[^\s]+/i)) {
+        return { type: 'image', url: cleanUrl };
+    }
+
+    // 3. Reddit CDN Images (i.redd.it, preview.redd.it, external-preview.redd.it)
+    if (cleanUrl.match(/(?:https?:\/\/)?(?:i|preview|external-preview)\.redd\.it\/[^\s]+/i)) {
+        return { type: 'image', url: cleanUrl };
+    }
+
+    // 4. Reddit Direct Video (v.redd.it)
+    const redditVideoRegex = /(?:https?:\/\/)?v\.redd\.it\/([a-zA-Z0-9_-]+)/i;
+    const redditVideoMatch = cleanUrl.match(redditVideoRegex);
+    if (redditVideoMatch) {
+        return { type: 'reddit_video', id: redditVideoMatch[1], url: cleanUrl };
+    }
+
+    // 5. Reddit Post Detection (reddit.com/r/sub/comments/id/..., /comments/id, or redd.it/id)
+    const redditPostRegex = /(?:https?:\/\/)?(?:(?:www\.|old\.|new\.)?reddit\.com\/(?:r\/([a-zA-Z0-9_]+)\/comments\/([a-z0-9]+)|comments\/([a-z0-9]+))|(?<![a-zA-Z0-9])redd\.it\/([a-z0-9]+))/i;
+    const redditPostMatch = cleanUrl.match(redditPostRegex);
+    if (redditPostMatch) {
+        const subreddit = redditPostMatch[1] || 'reddit';
+        const id = redditPostMatch[2] || redditPostMatch[3] || redditPostMatch[4];
+        return { type: 'reddit', subreddit, id, url: cleanUrl };
+    }
+
+    // 4. Direct HTML5 Video Detection
+    if (cleanUrl.match(/\.(mp4|webm|ogv|mov|m4v)(?:\?.*)?$/i)) {
+        return { type: 'video', url: cleanUrl };
+    }
+
+    // 5. Direct HTML5 Audio Detection
+    if (cleanUrl.match(/\.(mp3|wav|ogg|m4a|aac|opus|flac)(?:\?.*)?$/i)) {
+        return { type: 'audio', url: cleanUrl };
+    }
+
+    // 6. Default Fallback: Treat as Image
+    return { type: 'image', url: cleanUrl };
 }
 
+// --- CENTRALIZED MEDIA RENDERING ---
 function renderMedia(url) {
     if (!url) return "";
     const media = getMediaType(url);
+    if (!media) return "";
 
+    // 1. YouTube Card
     if (media.type === 'youtube') {
         const thumbUrl = `https://img.youtube.com/vi/${media.id}/mqdefault.jpg`;
-        return `<div class="media-container" onclick="openLightbox('youtube', '${media.id}')"><img src="${thumbUrl}" alt="YouTube Thumbnail"><div class="play-overlay">▶</div></div>`;
+        return `
+            <div class="media-container" onclick="openLightbox('youtube', '${media.id}')" title="Click to play YouTube Video">
+                <img src="${thumbUrl}" alt="YouTube Thumbnail" loading="lazy" decoding="async">
+                <div class="play-overlay">▶</div>
+            </div>
+        `;
     } 
-    else if (media.type === 'x') {
-        return `<div class="media-container file-placeholder x-placeholder" onclick="openLightbox('x', '${media.id}')"><div class="file-ext" style="color:#1DA1F2">𝕏</div><div style="font-size:10px; color:#fff">View Post</div></div>`;
-    } 
-    else if (media.type === 'video') {
-        return `<div class="media-container" onclick="openLightbox('video', '${media.url}')" style="cursor:pointer;"><video src="${media.url}#t=0.001" preload="metadata" muted playsinline style="max-width:200px; max-height:200px; object-fit:cover; display:block; pointer-events:none; border:none;"></video><div class="play-overlay">▶</div></div>`;
-    } 
-    else {
-        return `<img src="${url}" class="thread-image" onclick="openLightbox('image', '${url}')">`;
+
+    // 2. Twitter / X Card
+    if (media.type === 'x') {
+        const handleLabel = media.handle ? `@${escapeHtml(media.handle)}` : 'Post';
+        return `
+            <div class="media-container file-placeholder x-placeholder" onclick="openLightbox('x', '${media.id}')" title="Click to view Tweet by ${handleLabel}">
+                <div class="file-ext" style="color:#1DA1F2;">𝕏</div>
+                <div style="font-size:11px; color:#fff; font-weight:bold; margin-top:4px;">${handleLabel}</div>
+                <div style="font-size:10px; color:#aaa; margin-top:2px;">View Tweet &amp; Media</div>
+            </div>
+        `;
     }
+
+    // 3. Reddit Post Card
+    if (media.type === 'reddit') {
+        return `
+            <div class="media-container file-placeholder reddit-placeholder" onclick="openLightbox('reddit', '${escapeHtml(media.url)}', '${escapeHtml(media.subreddit)}', '${escapeHtml(media.id)}')" title="Click to view Reddit post on r/${escapeHtml(media.subreddit)}">
+                <div class="file-ext" style="color:#FF4500; display:flex; align-items:center; justify-content:center;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="#FF4500">
+                        <path d="M12 0C5.373 0 0 5.373 0 12c0 3.314 1.343 6.314 3.515 8.485l-1.03 3.09a.75.75 0 00.95.95l3.09-1.03C8.686 22.657 11.686 24 15 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm5.01 13.5c0 .825-.675 1.5-1.5 1.5-.412 0-.788-.168-1.06-.44-.825.562-1.95.915-3.2.94l.544-2.548 1.77.375c.026.685.586 1.233 1.286 1.233.714 0 1.29-.576 1.29-1.29 0-.714-.576-1.29-1.29-1.29-.488 0-.915.27-1.14.667l-2.01-.426a.375.375 0 00-.442.29l-.66 3.09c-1.32-.025-2.512-.39-3.375-.97a1.49 1.49 0 01-.983.37c-.825 0-1.5-.675-1.5-1.5 0-.585.34-1.09.83-1.332-.045-.22-.07-.446-.07-.668 0-2.348 2.73-4.25 6.1-4.25s6.1 1.902 6.1 4.25c0 .222-.025.448-.07.668.49.242.83.747.83 1.332z"/>
+                    </svg>
+                </div>
+                <div style="font-size:11px; color:#fff; font-weight:bold; margin-top:4px;">r/${escapeHtml(media.subreddit)}</div>
+                <div style="font-size:10px; color:#bbb; margin-top:2px;">View Post &amp; Media</div>
+            </div>
+        `;
+    }
+
+    // 4. Reddit Video Card (v.redd.it)
+    if (media.type === 'reddit_video') {
+        return `
+            <div class="media-container file-placeholder reddit-placeholder" onclick="openLightbox('reddit_video', '${media.id}')" title="Click to view Reddit Video">
+                <div class="file-ext" style="color:#FF4500;">🎥</div>
+                <div style="font-size:11px; color:#fff; font-weight:bold; margin-top:4px;">Reddit Video</div>
+                <div class="play-overlay">▶</div>
+            </div>
+        `;
+    }
+
+    // 5. Direct Video
+    if (media.type === 'video') {
+        return `
+            <div class="media-container" onclick="openLightbox('video', '${escapeHtml(media.url)}')" style="cursor:pointer;" title="Click to play Video">
+                <video src="${escapeHtml(media.url)}#t=0.001" preload="metadata" muted playsinline style="max-width:200px; max-height:200px; object-fit:cover; display:block; pointer-events:none; border:none;"></video>
+                <div class="play-overlay">▶</div>
+            </div>
+        `;
+    }
+
+    // 6. Direct Audio
+    if (media.type === 'audio') {
+        return `
+            <div class="media-container file-placeholder" onclick="openLightbox('audio', '${escapeHtml(media.url)}')" style="cursor:pointer; background:#2c3e50;" title="Click to play Audio">
+                <div class="file-ext" style="color:#00e5ff;">🎵</div>
+                <div style="font-size:11px; color:#fff; font-weight:bold; margin-top:4px;">Audio File</div>
+                <div class="play-overlay" style="width:36px; height:36px; font-size:18px;">▶</div>
+            </div>
+        `;
+    }
+
+    // 7. Standard Image (including i.redd.it and pbs.twimg.com)
+    return `
+        <img src="${escapeHtml(media.url)}" class="thread-image" loading="lazy" decoding="async" alt="Post attachment" onclick="openLightbox('image', '${escapeHtml(media.url)}')" onerror="this.onerror=null; this.style.display='none';" title="Click to expand image">
+    `;
 }
 
+// --- CLIENT-SIDE MEDIA VALIDATION ---
 function validateMediaUrl(url) {
     return new Promise((resolve) => {
-        if (!url) return resolve(true);
-        if (getMediaType(url).type !== 'image') return resolve(true);
+        if (!url || !url.trim()) return resolve({ valid: true });
+        const media = getMediaType(url);
+        
+        // Video, Audio, YouTube, Twitter, Reddit are accepted without pre-loading
+        if (media.type !== 'image') {
+            return resolve({ valid: true, type: media.type });
+        }
+
+        // Test Image Load
         const img = new Image();
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-        img.src = url;
-        setTimeout(() => resolve(false), 5000);
+        let finished = false;
+        img.onload = () => {
+            if (!finished) {
+                finished = true;
+                resolve({ valid: true, type: 'image' });
+            }
+        };
+        img.onerror = () => {
+            if (!finished) {
+                finished = true;
+                resolve({ valid: false, error: "Image failed to load. Check that the URL is public and direct." });
+            }
+        };
+        img.src = media.url;
+
+        // 4-second timeout guard
+        setTimeout(() => {
+            if (!finished) {
+                finished = true;
+                // Allow through on slow networks rather than blocking the post
+                resolve({ valid: true, type: 'image' });
+            }
+        }, 4000);
     });
 }
 
-// --- LIGHTBOX ---
-function openLightbox(type, content) {
+// --- CENTRALIZED LIGHTBOX CONTROLLER ---
+function openLightbox(type, content, extra1, extra2) {
     const lb = document.getElementById('lightbox');
+    if (!lb) return;
+
     const img = document.getElementById('lbImg');
     const vid = document.getElementById('lbVideo');
     const frame = document.getElementById('lbFrame');
 
-    img.style.display = vid.style.display = frame.style.display = 'none';
-    img.src = vid.src = frame.src = "";
-    frame.style.width = "800px";
-
-    if (type === 'image') { img.src = content; img.style.display = 'block'; }
-    else if (type === 'video') { vid.src = content; vid.style.display = 'block'; vid.play(); }
-    else if (type === 'youtube') { frame.src = `https://www.youtube.com/embed/${content}?autoplay=1`; frame.style.display = 'block'; }
-    else if (type === 'x') { 
-        // Dark theme for P5 mode, Light for P3R
-        const theme = BOARDS[currentBoard].type === 'nsfw' ? 'dark' : 'light';
-        frame.src = `https://platform.twitter.com/embed/Tweet.html?id=${content}&theme=${theme}`; 
-        frame.style.display = 'block'; 
-        frame.style.width = "550px"; 
+    // Reset all display states and media sources
+    if (img) { img.style.display = 'none'; img.src = ""; }
+    if (vid) { vid.style.display = 'none'; vid.pause(); vid.src = ""; }
+    if (frame) { 
+        frame.style.display = 'none'; 
+        frame.src = ""; 
+        frame.style.width = "800px"; 
+        frame.style.height = "450px"; 
     }
+
+    // Determine current theme: Night mode (P5) vs Standard (P3R)
+    const isNight = typeof currentBoard !== 'undefined' && typeof BOARDS !== 'undefined' && BOARDS[currentBoard] && BOARDS[currentBoard].type === 'nsfw';
+    const theme = isNight ? 'dark' : 'light';
+
+    if (type === 'image' && img) {
+        img.src = content;
+        img.style.display = 'block';
+    } 
+    else if ((type === 'video' || type === 'audio') && vid) {
+        vid.src = content;
+        vid.style.display = 'block';
+        vid.play().catch(() => {});
+    } 
+    else if (type === 'youtube' && frame) {
+        frame.src = `https://www.youtube.com/embed/${content}?autoplay=1`;
+        frame.style.display = 'block';
+    } 
+    else if (type === 'x' && frame) {
+        frame.src = `https://platform.twitter.com/embed/Tweet.html?id=${content}&theme=${theme}`;
+        frame.style.display = 'block';
+        frame.style.width = "550px";
+        frame.style.height = "520px";
+    }
+    else if (type === 'reddit' && frame) {
+        const subreddit = extra1 || 'reddit';
+        const postId = extra2 || '';
+        // Official Reddit Embed Frame (supports frame-ancestors: *)
+        const embedUrl = `https://embed.reddit.com/r/${encodeURIComponent(subreddit)}/comments/${encodeURIComponent(postId)}/?embed=true&theme=${theme}`;
+        frame.src = embedUrl;
+        frame.style.display = 'block';
+        frame.style.width = "650px";
+        frame.style.height = "540px";
+    }
+    else if (type === 'reddit_video' && frame) {
+        frame.src = `https://embed.reddit.com/video/${encodeURIComponent(content)}/?embed=true&theme=${theme}`;
+        frame.style.display = 'block';
+        frame.style.width = "650px";
+        frame.style.height = "500px";
+    }
+
     lb.style.display = 'flex';
 }
 
 function closeLightbox(e) {
-    if (e.target.id === 'lightbox' || e.target.id === 'lightboxContent') {
-        document.getElementById('lightbox').style.display = 'none';
-        document.getElementById('lbVideo').pause();
-        document.getElementById('lbVideo').src = "";
-        document.getElementById('lbFrame').src = "";
+    if (!e || e.target.id === 'lightbox' || e.target.id === 'lightboxContent' || e.key === 'Escape') {
+        const lb = document.getElementById('lightbox');
+        if (!lb) return;
+        lb.style.display = 'none';
+
+        const vid = document.getElementById('lbVideo');
+        if (vid) {
+            vid.pause();
+            vid.src = "";
+        }
+
+        const frame = document.getElementById('lbFrame');
+        if (frame) {
+            frame.src = "";
+        }
+
+        const img = document.getElementById('lbImg');
+        if (img) {
+            img.src = "";
+        }
     }
 }
 
-// --- IMGBB UPLOAD ---
-document.addEventListener('DOMContentLoaded', () => {
+// Close Lightbox on ESC key
+if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const lb = document.getElementById('lightbox');
+            if (lb && lb.style.display === 'flex') {
+                closeLightbox(e);
+            }
+        }
+    });
+}
+
+// --- LIVE MEDIA INPUT DETECTOR ---
+function initMediaInputDetector() {
+    const imageInput = document.getElementById('imageInput');
+    const badge = document.getElementById('mediaDetectedBadge');
+    if (!imageInput || !badge) return;
+
+    const updateBadge = () => {
+        const val = imageInput.value.trim();
+        if (!val) {
+            badge.style.display = 'none';
+            badge.innerHTML = '';
+            return;
+        }
+
+        const media = getMediaType(val);
+        if (!media) {
+            badge.style.display = 'none';
+            return;
+        }
+
+        badge.style.display = 'block';
+        if (media.type === 'reddit') {
+            badge.style.background = 'rgba(255, 69, 0, 0.15)';
+            badge.style.color = '#ff6a33';
+            badge.style.border = '1px solid #FF4500';
+            badge.innerHTML = `✓ Reddit Post Detected: <b>r/${escapeHtml(media.subreddit)}</b> (Embed &amp; Media Card)`;
+        } else if (media.type === 'reddit_video') {
+            badge.style.background = 'rgba(255, 69, 0, 0.15)';
+            badge.style.color = '#ff6a33';
+            badge.style.border = '1px solid #FF4500';
+            badge.innerHTML = `✓ Reddit Video Detected (Player will be attached)`;
+        } else if (media.type === 'x') {
+            badge.style.background = 'rgba(29, 161, 242, 0.15)';
+            badge.style.color = '#1DA1F2';
+            badge.style.border = '1px solid #1DA1F2';
+            badge.innerHTML = `✓ 𝕏 / Twitter Post Detected: <b>${media.handle ? '@' + escapeHtml(media.handle) : 'Post'}</b> (Interactive Embed)`;
+        } else if (media.type === 'youtube') {
+            badge.style.background = 'rgba(255, 0, 0, 0.15)';
+            badge.style.color = '#ff4d4d';
+            badge.style.border = '1px solid #ff4d4d';
+            badge.innerHTML = `✓ YouTube Video Detected (Thumbnail &amp; Player)`;
+        } else if (media.type === 'video') {
+            badge.style.background = 'rgba(0, 229, 255, 0.15)';
+            badge.style.color = '#00e5ff';
+            badge.style.border = '1px solid #00e5ff';
+            badge.innerHTML = `✓ HTML5 Video Detected`;
+        } else if (media.type === 'audio') {
+            badge.style.background = 'rgba(46, 204, 113, 0.15)';
+            badge.style.color = '#2ecc71';
+            badge.style.border = '1px solid #2ecc71';
+            badge.innerHTML = `✓ Audio Track Detected`;
+        } else {
+            badge.style.background = 'rgba(255, 255, 255, 0.08)';
+            badge.style.color = 'var(--text-color)';
+            badge.style.border = '1px solid var(--border-color)';
+            badge.innerHTML = `✓ Image URL Detected`;
+        }
+    };
+
+    imageInput.addEventListener('input', updateBadge);
+    imageInput.addEventListener('change', updateBadge);
+    imageInput.addEventListener('paste', () => setTimeout(updateBadge, 50));
+}
+
+// --- IMGBB UPLOAD CONTROLLER ---
+function initMediaUpload() {
     const uploadBtn = document.getElementById('uploadBtn');
     if (!uploadBtn) return;
     const hiddenInput = document.getElementById('hiddenFileInput');
     const urlInput = document.getElementById('imageInput');
 
-    uploadBtn.onclick = () => hiddenInput.click();
+    uploadBtn.onclick = () => {
+        if (hiddenInput) hiddenInput.click();
+    };
+
+    if (!hiddenInput) return;
 
     hiddenInput.onchange = async () => {
         const file = hiddenInput.files[0];
         if (!file) return;
 
-        uploadBtn.innerText = "UP..."; 
+        // Size check (max 32MB for ImgBB)
+        if (file.size > 32 * 1024 * 1024) {
+            if (typeof showToast === 'function') {
+                showToast("File exceeds 32MB limit.");
+            } else {
+                alert("File exceeds 32MB limit.");
+            }
+            hiddenInput.value = "";
+            return;
+        }
+
+        uploadBtn.innerText = "Uploading...";
         uploadBtn.disabled = true;
-        const formData = new FormData(); 
+        const formData = new FormData();
         formData.append("image", file);
 
         try {
-            const resp = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body: formData });
+            const resp = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+                method: "POST",
+                body: formData
+            });
             const result = await resp.json();
-            if (result.success) { 
-                urlInput.value = result.data.url; 
-                urlInput.focus(); 
+            if (result.success && result.data && result.data.url) {
+                if (urlInput) {
+                    urlInput.value = result.data.url;
+                    urlInput.dispatchEvent(new Event('input'));
+                    urlInput.focus();
+                }
+                if (typeof showToast === 'function') {
+                    showToast("Image uploaded successfully!");
+                }
             } else {
-                alert("Upload Failed: " + result.error.message);
+                const errMsg = result.error?.message || "Upload failed";
+                if (typeof showToast === 'function') showToast(errMsg);
+                else alert("Upload Failed: " + errMsg);
             }
-        } catch (err) { 
-            alert("Network Error during upload"); 
-        } finally { 
-            uploadBtn.innerText = "Upload Image"; 
-            uploadBtn.disabled = false; 
-            hiddenInput.value = ""; 
+        } catch (err) {
+            if (typeof showToast === 'function') showToast("Network error during upload.");
+            else alert("Network Error during upload");
+        } finally {
+            uploadBtn.innerText = "Upload Image";
+            uploadBtn.disabled = false;
+            hiddenInput.value = "";
         }
     };
-});
+}
+
+// Auto-initialize controls on DOM ready
+function initAllMedia() {
+    initMediaUpload();
+    initMediaInputDetector();
+}
+
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAllMedia);
+    } else {
+        initAllMedia();
+    }
+}
+
+// Export unified namespace
+if (typeof window !== 'undefined') {
+    window.MediaHandler = {
+        getMediaType,
+        renderMedia,
+        validateMediaUrl,
+        openLightbox,
+        closeLightbox,
+        initMediaUpload
+    };
+}
