@@ -77,6 +77,53 @@ textarea { height: 80px; resize: vertical; }
     font-weight: 900;
     cursor: pointer;
 }
+
+/* Media Help Drawer in Post Form */
+.media-help-drawer {
+    font-size: 0.82em;
+    color: var(--text-color);
+}
+.media-help-drawer summary {
+    cursor: pointer;
+    opacity: 0.85;
+    user-select: none;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: opacity 0.2s;
+}
+.media-help-drawer summary:hover {
+    opacity: 1;
+    color: var(--main-accent);
+}
+.media-help-drawer .media-help-content {
+    margin-top: 6px;
+    padding: 8px 12px;
+    background: var(--reply-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    line-height: 1.55;
+}
+.media-help-drawer .media-help-content ul {
+    margin: 0;
+    padding-left: 18px;
+}
+.media-help-drawer .media-help-content li {
+    margin-bottom: 3px;
+}
+.media-help-drawer .media-help-content code {
+    background: rgba(0, 0, 0, 0.08);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.95em;
+}
+body.night-mode .media-help-drawer .media-help-content code {
+    background: rgba(255, 255, 255, 0.12);
+}
+
 #submitBtn {
     background-color: var(--main-accent);
     color: #fff;

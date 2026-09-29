@@ -45,6 +45,20 @@
                 <button type="button" id="uploadBtn">Upload Image</button>
             </div>
             
+            <!-- Collapsible Media Format Tips -->
+            <details class="media-help-drawer">
+                <summary><span>ℹ️ Supported Media &amp; Upload Formats</span></summary>
+                <div class="media-help-content">
+                    <ul>
+                        <li><b>Direct Images:</b> Links ending in <code>.jpg</code>, <code>.png</code>, <code>.gif</code>, <code>.webp</code>.</li>
+                        <li><b>Upload Image:</b> Click <b>Upload Image</b> to upload directly from your device (free hosting via ImgBB).</li>
+                        <li><b>YouTube:</b> <code>youtube.com/watch?v=...</code>, <code>youtu.be/...</code>, or Shorts.</li>
+                        <li><b>X (Twitter):</b> Direct post URLs (<code>https://x.com/.../status/...</code>).</li>
+                        <li><b>Direct Video:</b> Video URLs ending in <code>.mp4</code> or <code>.webm</code>.</li>
+                    </ul>
+                </div>
+            </details>
+            
             <input type="file" id="hiddenFileInput" accept="image/*" style="display: none;">
             <button type="submit" id="submitBtn">Submit Post</button>
         </form>
