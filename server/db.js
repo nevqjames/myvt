@@ -104,7 +104,7 @@ export function initSeedData() {
                         );
                         threadCount++;
 
-                        const escapeSql = (s) => (s ? s.replace(/'/g, "''") : '');
+                        const escapeSql = (s) => (s ? s.replace(/'/g, "''").replace(/\r/g, '').replace(/\n/g, "' || char(10) || '") : '');
                         sqlStatements.push(`INSERT OR IGNORE INTO threads (id, board, name, subject, comment, media_url, ip_hash, created_at, bumped_at, is_pinned, is_locked) VALUES ('${escapeSql(threadId)}', '${escapeSql(boardId)}', '${escapeSql(name)}', '${escapeSql(subject)}', '${escapeSql(comment)}', '${escapeSql(media)}', '${escapeSql(ipHash)}', ${createdAt}, ${bumpedAt}, 0, 0);`);
 
                         const replies = thread.replies || {};
@@ -132,15 +132,12 @@ export function initSeedData() {
                     }
                 }
 
-                // Write Cloudflare D1 import.sql file for convenience
+                // Write Cloudflare D1 import.sql file without inline comments
                 const d1ImportSql = [
-                    '-- Cloudflare D1 Historical Data Migration File',
                     fs.readFileSync(path.join(rootDir, 'db', 'schema.sql'), 'utf-8'),
                     '',
-                    '-- Pre-seeded Admin Account (Password: admin123)',
                     `INSERT OR IGNORE INTO users (id, username, password_hash, role, display_title, created_at) VALUES ('user_admin_01', 'admin', '${hashPassword("admin123")}', 'admin', 'Admin 🛡️', ${Date.now()});`,
                     '',
-                    '-- Historical Threads and Replies',
                     ...sqlStatements
                 ].join('\n');
 
