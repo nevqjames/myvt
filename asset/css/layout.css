@@ -297,10 +297,174 @@ body.night-mode .media-help-drawer .media-help-content code {
 .file-ext { font-weight: bold; font-size: 24px; color: #ffcc00; }
 .x-placeholder { background-color: #000; border: 2px solid #1DA1F2; }
 
-/* --- SPECIAL TEXT --- */
-.quote-link { color: var(--main-accent); font-weight: bold; text-decoration: underline; }
+/* --- SPECIAL TEXT & LINKBACKS --- */
+.quote-link { 
+    color: var(--main-accent); 
+    font-weight: bold; 
+    text-decoration: underline; 
+    cursor: pointer;
+}
+.quote-link:hover {
+    color: var(--sub-accent);
+}
 .backlink-container { margin-top: 10px; font-size: 0.8em; }
-.backlink { color: var(--header-color); text-decoration: underline; margin-right: 5px; }
+.backlink { 
+    color: var(--header-color); 
+    text-decoration: underline; 
+    margin-right: 5px; 
+    cursor: pointer;
+}
+.backlink:hover {
+    color: var(--main-accent);
+}
+
+/* Post Highlight Pulse (upon clicking >> quote or backlink) */
+.post-highlight-active {
+    outline: 3px solid var(--main-accent) !important;
+    box-shadow: 0 0 22px var(--main-accent) !important;
+    animation: postPulse 2.2s ease-out;
+}
+
+@keyframes postPulse {
+    0% {
+        outline-color: var(--sub-accent);
+        box-shadow: 0 0 25px var(--sub-accent);
+        background-color: rgba(0, 132, 255, 0.18);
+    }
+    40% {
+        outline-color: var(--main-accent);
+        box-shadow: 0 0 16px var(--main-accent);
+        background-color: rgba(0, 132, 255, 0.08);
+    }
+    100% {
+        outline-color: transparent;
+        box-shadow: none;
+    }
+}
+
+body.night-mode .post-highlight-active {
+    outline: 3px solid var(--main-accent) !important;
+    box-shadow: 0 0 22px rgba(255, 0, 0, 0.8) !important;
+}
+
+/* Floating Hover Preview Popup for Quotes and Backlinks */
+.post-preview-popup {
+    position: fixed !important;
+    z-index: 10000;
+    max-width: 500px;
+    min-width: 260px;
+    background: var(--card-bg);
+    border: 2px solid var(--main-accent);
+    border-radius: var(--border-radius);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    padding: 12px 14px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    display: none;
+}
+
+.post-preview-popup.visible {
+    display: block !important;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.post-preview-popup .op,
+.post-preview-popup .reply {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+}
+
+.post-preview-popup .backlink-container {
+    display: none !important;
+}
+
+/* Floating Back to Top Bubble */
+.back-to-top-bubble {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--main-accent);
+    color: #ffffff;
+    border: 2px solid var(--card-bg);
+    box-shadow: 0 4px 18px rgba(0, 132, 255, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 9998;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(16px) scale(0.9);
+    transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s, box-shadow 0.2s;
+    user-select: none;
+}
+
+.back-to-top-bubble.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+}
+
+.back-to-top-bubble:hover {
+    background: var(--sub-accent);
+    transform: translateY(-3px) scale(1.08);
+    box-shadow: 0 6px 24px rgba(0, 229, 255, 0.6);
+}
+
+.back-to-top-bubble:active {
+    transform: translateY(0) scale(0.95);
+}
+
+.back-to-top-bubble svg {
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+}
+
+body.night-mode .back-to-top-bubble {
+    background: #ff0000;
+    box-shadow: 0 4px 18px rgba(255, 0, 0, 0.5);
+}
+
+body.night-mode .back-to-top-bubble:hover {
+    background: #ff4444;
+    box-shadow: 0 6px 24px rgba(255, 0, 0, 0.8);
+}
+
+/* Site Toast Notification */
+.site-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 80px;
+    background: var(--card-bg);
+    color: var(--text-color);
+    border: 2px solid var(--main-accent);
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 0.9em;
+    font-weight: bold;
+    box-shadow: var(--shadow);
+    z-index: 10001;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.site-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
 
 /* --- LIGHTBOX --- */
 #lightbox {

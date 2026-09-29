@@ -194,6 +194,12 @@ function navigateToPost(postId, triggerElement = null) {
 
 // Intercept all quote-link and backlink clicks so they never crash into board mode
 document.addEventListener('click', (e) => {
+    // Hide any open hover preview tooltip immediately upon clicking
+    if (previewTooltip) {
+        previewTooltip.classList.remove('visible');
+        previewTooltip.style.display = 'none';
+    }
+
     const link = e.target.closest('.quote-link, .backlink');
     if (!link) return;
 
@@ -217,6 +223,10 @@ function initHoverPreviews() {
         previewTooltip = document.createElement('div');
         previewTooltip.id = 'postPreviewPopup';
         previewTooltip.className = 'post-preview-popup';
+        // Guaranteed inline safeguards so it never appears as a block at page bottom
+        previewTooltip.style.position = 'fixed';
+        previewTooltip.style.display = 'none';
+        previewTooltip.style.zIndex = '10000';
         document.body.appendChild(previewTooltip);
     }
 
@@ -239,6 +249,7 @@ function initHoverPreviews() {
         
         previewTooltip.innerHTML = '';
         previewTooltip.appendChild(clone);
+        previewTooltip.style.display = 'block';
         previewTooltip.classList.add('visible');
 
         // Position tooltip clamped to viewport
@@ -270,13 +281,40 @@ function initHoverPreviews() {
 
         if (previewTooltip) {
             previewTooltip.classList.remove('visible');
+            previewTooltip.style.display = 'none';
+            previewTooltip.innerHTML = '';
         }
     });
 }
 
-// Auto-initialize hover previews on load
+// ==========================================
+// FLOATING BACK TO TOP BUBBLE
+// ==========================================
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function initBackToTop() {
+    const btn = document.getElementById('backToTopBtn');
+    if (!btn) return;
+
+    window.addEventListener('scroll', () => {
+        // Appears when scrolled down more than 280px
+        if (window.scrollY > 280) {
+            btn.classList.add('visible');
+        } else {
+            btn.classList.remove('visible');
+        }
+    }, { passive: true });
+}
+
+// Auto-initialize on load
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initHoverPreviews);
+    document.addEventListener('DOMContentLoaded', () => {
+        initHoverPreviews();
+        initBackToTop();
+    });
 } else {
     initHoverPreviews();
+    initBackToTop();
 }
