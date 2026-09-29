@@ -202,13 +202,21 @@ textarea { height: 80px; resize: vertical; }
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(0,0,0,0.7);
-    color: #fff; font-size: 30px;
-    width: 50px; height: 50px;
-    text-align: center; line-height: 50px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    font-size: 24px;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-indent: 3px;
     border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     pointer-events: none;
-    z-index: 2;
+    z-index: 10;
+    transition: transform 0.2s ease, background 0.2s ease;
 }
 
 .file-placeholder {
