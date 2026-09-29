@@ -338,6 +338,79 @@ app.post('/api/auth/logout', (req, res) => {
     res.json({ success: true });
 });
 
+// 9b. User Perks: Cross-device (You) posts
+app.get('/api/user/my-posts', (req, res) => {
+    if (!req.user) return res.json({ success: true, post_ids: [] });
+    try {
+        const threadIds = db.prepare('SELECT id FROM threads WHERE user_id = ?').all(req.user.user_id).map(r => r.id);
+        const replyIds = db.prepare('SELECT id FROM replies WHERE user_id = ?').all(req.user.user_id).map(r => r.id);
+        res.json({ success: true, post_ids: [...threadIds, ...replyIds] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 9c. User Perks: Reply Counter / Notifications
+app.get('/api/user/notifications', (req, res) => {
+    if (!req.user) return res.json({ success: true, notifications: [] });
+    try {
+        const uid = req.user.user_id;
+        const notifications = db.prepare(`
+            SELECT r.id, r.thread_id, r.board, r.name, r.comment, r.created_at, t.subject
+            FROM replies r
+            JOIN threads t ON t.id = r.thread_id
+            WHERE (r.user_id IS NULL OR r.user_id != ?)
+              AND (
+                t.user_id = ?
+                OR EXISTS (
+                    SELECT 1 FROM replies my_r
+                    WHERE my_r.user_id = ? AND r.comment LIKE '%' || my_r.id || '%'
+                )
+              )
+            ORDER BY r.created_at DESC LIMIT 30
+        `).all(uid, uid, uid);
+        res.json({ success: true, notifications });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 9d. User Perks: Watchlist
+app.get('/api/user/watchlist', (req, res) => {
+    if (!req.user) return res.json({ success: true, watchlist: [] });
+    try {
+        const watchlist = db.prepare(`
+            SELECT t.id, t.board, t.subject, t.name, t.comment, t.media_url, t.bumped_at, t.created_at,
+                   (SELECT COUNT(*) FROM replies r WHERE r.thread_id = t.id) as reply_count
+            FROM watchlist w
+            JOIN threads t ON t.id = w.thread_id
+            WHERE w.user_id = ?
+            ORDER BY t.bumped_at DESC
+        `).all(req.user.user_id);
+        res.json({ success: true, watchlist });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/user/watchlist/toggle', (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Login required to watch threads.' });
+    const { thread_id } = req.body;
+    if (!thread_id) return res.status(400).json({ error: 'Missing thread_id' });
+    try {
+        const existing = db.prepare('SELECT 1 FROM watchlist WHERE user_id = ? AND thread_id = ?').get(req.user.user_id, thread_id);
+        if (existing) {
+            db.prepare('DELETE FROM watchlist WHERE user_id = ? AND thread_id = ?').run(req.user.user_id, thread_id);
+            return res.json({ success: true, watched: false });
+        } else {
+            db.prepare('INSERT INTO watchlist (user_id, thread_id, created_at) VALUES (?, ?, ?)').run(req.user.user_id, thread_id, Date.now());
+            return res.json({ success: true, watched: true });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // 10. Admin: Delete Thread or Reply
 app.post('/api/admin/delete', (req, res) => {
     if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'mod')) {

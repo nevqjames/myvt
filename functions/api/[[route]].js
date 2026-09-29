@@ -271,6 +271,67 @@ export async function onRequest(context) {
             return json({ success: true, user });
         }
 
+        // 8b. User Perks: Cross-device (You) posts
+        if (route === 'user' && path[1] === 'my-posts' && method === 'GET') {
+            if (!user) return json({ success: true, post_ids: [] });
+            const threadIds = (await db.prepare('SELECT id FROM threads WHERE user_id = ?').bind(user.user_id).all()).results || [];
+            const replyIds = (await db.prepare('SELECT id FROM replies WHERE user_id = ?').bind(user.user_id).all()).results || [];
+            return json({
+                success: true,
+                post_ids: [...threadIds.map(r => r.id), ...replyIds.map(r => r.id)]
+            });
+        }
+
+        // 8c. User Perks: Notifications
+        if (route === 'user' && path[1] === 'notifications' && method === 'GET') {
+            if (!user) return json({ success: true, notifications: [] });
+            const uid = user.user_id;
+            const notifs = (await db.prepare(`
+                SELECT r.id, r.thread_id, r.board, r.name, r.comment, r.created_at, t.subject
+                FROM replies r
+                JOIN threads t ON t.id = r.thread_id
+                WHERE (r.user_id IS NULL OR r.user_id != ?)
+                  AND (
+                    t.user_id = ?
+                    OR EXISTS (
+                        SELECT 1 FROM replies my_r
+                        WHERE my_r.user_id = ? AND r.comment LIKE '%' || my_r.id || '%'
+                    )
+                  )
+                ORDER BY r.created_at DESC LIMIT 30
+            `).bind(uid, uid, uid).all()).results || [];
+            return json({ success: true, notifications: notifs });
+        }
+
+        // 8d. User Perks: Watchlist
+        if (route === 'user' && path[1] === 'watchlist' && method === 'GET') {
+            if (!user) return json({ success: true, watchlist: [] });
+            const list = (await db.prepare(`
+                SELECT t.id, t.board, t.subject, t.name, t.comment, t.media_url, t.bumped_at, t.created_at,
+                       (SELECT COUNT(*) FROM replies r WHERE r.thread_id = t.id) as reply_count
+                FROM watchlist w
+                JOIN threads t ON t.id = w.thread_id
+                WHERE w.user_id = ?
+                ORDER BY t.bumped_at DESC
+            `).bind(user.user_id).all()).results || [];
+            return json({ success: true, watchlist: list });
+        }
+
+        if (route === 'user' && path[1] === 'watchlist' && path[2] === 'toggle' && method === 'POST') {
+            if (!user) return json({ error: 'Login required' }, 401);
+            const { thread_id } = await request.json();
+            if (!thread_id) return json({ error: 'Missing thread_id' }, 400);
+
+            const existing = await db.prepare('SELECT 1 FROM watchlist WHERE user_id = ? AND thread_id = ?').bind(user.user_id, thread_id).first();
+            if (existing) {
+                await db.prepare('DELETE FROM watchlist WHERE user_id = ? AND thread_id = ?').bind(user.user_id, thread_id).run();
+                return json({ success: true, watched: false });
+            } else {
+                await db.prepare('INSERT INTO watchlist (user_id, thread_id, created_at) VALUES (?, ?, ?)').bind(user.user_id, thread_id, Date.now()).run();
+                return json({ success: true, watched: true });
+            }
+        }
+
         // 9. Admin Moderation
         if (route === 'admin' && (user?.role === 'admin' || user?.role === 'mod')) {
             const sub = path[1];

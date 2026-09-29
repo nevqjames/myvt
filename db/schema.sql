@@ -55,3 +55,14 @@ CREATE TABLE IF NOT EXISTS replies (
 );
 
 CREATE INDEX IF NOT EXISTS idx_replies_thread_created ON replies(thread_id, created_at ASC);
+
+CREATE TABLE IF NOT EXISTS watchlist (
+    user_id TEXT NOT NULL,
+    thread_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, thread_id),
+    FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_watchlist_user ON watchlist(user_id);

@@ -3,6 +3,8 @@
 // Connected to Cloudflare D1 / SQLite REST API
 // ==========================================
 
+let userWatchlistIds = new Set();
+
 // --- NSFW GATE ---
 function checkNSFWGate() {
     if (currentBoard && BOARDS[currentBoard] && BOARDS[currentBoard].type === 'nsfw') {
@@ -213,6 +215,17 @@ function renderThreadPreview(th) {
         `;
     }
 
+    // Watch control
+    let watchControl = "";
+    if (currentUser) {
+        const isWatched = userWatchlistIds.has(th.id);
+        watchControl = `
+            <span style="margin-left: 6px; font-size: 0.9em;">
+                [<a href="javascript:void(0)" onclick="toggleWatch('${th.id}')" id="watchBtn_${th.id}" style="${isWatched ? 'color:#eab308; font-weight:bold;' : ''}">${isWatched ? '⭐ Watching' : '⭐ Watch'}</a>]
+            </span>
+        `;
+    }
+
     // Preview replies HTML
     let repliesHtml = "";
     if (th.preview_replies && th.preview_replies.length > 0) {
@@ -240,6 +253,7 @@ function renderThreadPreview(th) {
                         <span class="post-id">No. <a href="?b=${currentBoard}#thread_${th.id}">${th.id.substring(1, 9)}</a></span>
                         ${youTag}
                         <a href="?b=${currentBoard}#thread_${th.id}" class="reply-link">[Reply ➜]</a>
+                        ${watchControl}
                         ${modControls}
                     </div>
                     <div class="backlink-container" id="backlinks_${th.id}"></div>
@@ -312,6 +326,16 @@ async function loadThreadView(threadId, isSilent = false) {
                 `;
             }
 
+            let watchControl = "";
+            if (currentUser) {
+                const isWatched = userWatchlistIds.has(th.id);
+                watchControl = `
+                    <span style="margin-left: 6px; font-size: 0.9em;">
+                        [<a href="javascript:void(0)" onclick="toggleWatch('${th.id}')" id="watchBtn_${th.id}" style="${isWatched ? 'color:#eab308; font-weight:bold;' : ''}">${isWatched ? '⭐ Watching' : '⭐ Watch'}</a>]
+                    </span>
+                `;
+            }
+
             opContainer.innerHTML = `
                 <div class="op" id="post_${th.id}">
                     ${mediaHtml}
@@ -325,6 +349,7 @@ async function loadThreadView(threadId, isSilent = false) {
                             <span class="date">${dateStr}</span>
                             <span class="post-id">No. <a href="javascript:void(0)" onclick="quotePost('${th.id}', '${th.id}')">${th.id.substring(1, 9)}</a></span>
                             ${youTag}
+                            ${watchControl}
                             ${modControls}
                         </div>
                         <div class="backlink-container" id="backlinks_${th.id}"></div>
@@ -531,6 +556,7 @@ async function toggleLock(threadId) {
 async function initAuth() {
     if (!authToken) {
         updateAuthUI(null);
+        syncUserPerks();
         return;
     }
 
@@ -538,11 +564,13 @@ async function initAuth() {
         const data = await apiFetch('/auth/me');
         currentUser = data.user;
         updateAuthUI(currentUser);
+        syncUserPerks();
     } catch {
         localStorage.removeItem('myvt_token');
         authToken = null;
         currentUser = null;
         updateAuthUI(null);
+        syncUserPerks();
     }
 }
 
@@ -617,6 +645,7 @@ async function handleAuthSubmit(e) {
             currentUser = res.user;
             updateAuthUI(currentUser);
             closeAuthModal();
+            syncUserPerks();
             router();
         }
     } catch (err) {
@@ -632,7 +661,239 @@ async function logout() {
     authToken = null;
     currentUser = null;
     updateAuthUI(null);
+    syncUserPerks();
     router();
+}
+
+// --- USER PERKS: CROSS-DEVICE (YOU), WATCHLIST & NOTIFICATIONS ---
+async function syncUserPerks() {
+    const notifNav = document.getElementById('notifNav');
+    const watchNav = document.getElementById('watchNav');
+
+    if (!currentUser) {
+        userWatchlistIds.clear();
+        if (notifNav) notifNav.style.display = 'none';
+        if (watchNav) watchNav.style.display = 'none';
+        return;
+    }
+
+    if (notifNav) notifNav.style.display = 'inline';
+    if (watchNav) watchNav.style.display = 'inline';
+
+    // 1. Cross-Device (You) sync
+    try {
+        const postsData = await apiFetch('/user/my-posts');
+        if (postsData.success && Array.isArray(postsData.post_ids)) {
+            let updated = false;
+            for (const pid of postsData.post_ids) {
+                if (!MY_POSTS.includes(pid)) {
+                    MY_POSTS.push(pid);
+                    updated = true;
+                }
+            }
+            if (updated) {
+                localStorage.setItem('my_posts', JSON.stringify(MY_POSTS));
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to sync (You) posts:', e);
+    }
+
+    // 2. Watchlist sync
+    try {
+        const watchData = await apiFetch('/user/watchlist');
+        if (watchData.success && Array.isArray(watchData.watchlist)) {
+            userWatchlistIds = new Set(watchData.watchlist.map(t => t.id));
+            const badge = document.getElementById('watchlistBadge');
+            if (badge) badge.innerText = `(${userWatchlistIds.size})`;
+        }
+    } catch (e) {
+        console.warn('Failed to sync watchlist:', e);
+    }
+
+    // 3. Reply notifications sync
+    try {
+        const notifData = await apiFetch('/user/notifications');
+        if (notifData.success && Array.isArray(notifData.notifications)) {
+            const lastSeen = parseInt(localStorage.getItem('myvt_last_seen_notif') || '0', 10);
+            const unread = notifData.notifications.filter(n => n.created_at > lastSeen).length;
+            const badge = document.getElementById('replyBadge');
+            if (badge) {
+                if (unread > 0) {
+                    badge.innerText = unread;
+                    badge.style.display = 'inline';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to sync notifications:', e);
+    }
+}
+
+async function toggleWatch(threadId) {
+    if (!currentUser) {
+        openAuthModal('login');
+        return;
+    }
+    try {
+        const res = await apiFetch('/user/watchlist/toggle', {
+            method: 'POST',
+            body: { thread_id: threadId }
+        });
+        if (res.success) {
+            if (res.watched) {
+                userWatchlistIds.add(threadId);
+            } else {
+                userWatchlistIds.delete(threadId);
+            }
+            const badge = document.getElementById('watchlistBadge');
+            if (badge) badge.innerText = `(${userWatchlistIds.size})`;
+
+            // Update any visible watch buttons
+            const btns = document.querySelectorAll(`[id^="watchBtn_${threadId}"]`);
+            btns.forEach(btn => {
+                btn.innerText = res.watched ? '⭐ Watching' : '⭐ Watch';
+                btn.style.color = res.watched ? '#eab308' : '';
+                btn.style.fontWeight = res.watched ? 'bold' : '';
+            });
+        }
+    } catch (err) {
+        alert("Failed to update watchlist: " + err.message);
+    }
+}
+
+async function openWatchlistModal() {
+    const modal = document.getElementById('watchlistModal');
+    const container = document.getElementById('watchlistContent');
+    if (!modal || !container) return;
+
+    modal.style.display = 'flex';
+    container.innerHTML = '<div style="text-align:center; opacity:0.6; padding:20px;">Loading watchlist...</div>';
+
+    try {
+        const res = await apiFetch('/user/watchlist');
+        if (!res.success || !res.watchlist || res.watchlist.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:30px; opacity:0.75;">
+                    <div style="font-size:2rem; margin-bottom:8px;">⭐</div>
+                    <div style="font-weight:bold; margin-bottom:4px;">No watched threads yet</div>
+                    <div style="font-size:0.9em;">Click <b>[⭐ Watch]</b> on any thread to track new replies and discussions across your devices!</div>
+                </div>
+            `;
+            return;
+        }
+
+        userWatchlistIds = new Set(res.watchlist.map(t => t.id));
+        const badge = document.getElementById('watchlistBadge');
+        if (badge) badge.innerText = `(${userWatchlistIds.size})`;
+
+        let html = '';
+        for (const th of res.watchlist) {
+            const timeAgo = formatTimeAgo(th.bumped_at);
+            const title = escapeHtml(th.subject || th.comment.substring(0, 50) + '...');
+            html += `
+                <div style="border:1px solid var(--border-color); border-radius:6px; padding:10px; background:rgba(0,0,0,0.03); display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                    <div style="min-width:0; flex-grow:1;">
+                        <div style="font-size:0.85em; opacity:0.8; margin-bottom:2px;">
+                            <span style="font-weight:bold; color:var(--main-accent);">/${th.board}/</span> • ${th.reply_count} replies • Last bumped ${timeAgo}
+                        </div>
+                        <a href="?b=${th.board}#thread_${th.id}" onclick="closeWatchlistModal()" style="font-weight:bold; text-decoration:none; color:var(--text-color); font-size:0.95em; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            ${title}
+                        </a>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-shrink:0;">
+                        <a href="?b=${th.board}#thread_${th.id}" onclick="closeWatchlistModal()" style="padding:4px 8px; background:var(--main-accent); color:#fff; border-radius:4px; font-size:0.8em; text-decoration:none; font-weight:bold;">Visit ➜</a>
+                        <button onclick="unwatchFromModal('${th.id}')" style="padding:4px 8px; background:none; border:1px solid var(--border-color); border-radius:4px; font-size:0.8em; cursor:pointer; color:var(--text-color);">✕</button>
+                    </div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    } catch (err) {
+        container.innerHTML = `<div style="color:red; text-align:center; padding:20px;">Failed to load watchlist: ${err.message}</div>`;
+    }
+}
+
+function closeWatchlistModal() {
+    const modal = document.getElementById('watchlistModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function unwatchFromModal(threadId) {
+    await toggleWatch(threadId);
+    openWatchlistModal();
+}
+
+async function openNotificationsModal() {
+    const modal = document.getElementById('notificationsModal');
+    const container = document.getElementById('notificationsList');
+    if (!modal || !container) return;
+
+    modal.style.display = 'flex';
+    container.innerHTML = '<div style="text-align:center; opacity:0.6; padding:20px;">Loading notifications...</div>';
+
+    // Update last seen timestamp
+    localStorage.setItem('myvt_last_seen_notif', Date.now().toString());
+    const badge = document.getElementById('replyBadge');
+    if (badge) badge.style.display = 'none';
+
+    try {
+        const res = await apiFetch('/user/notifications');
+        if (!res.success || !res.notifications || res.notifications.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:30px; opacity:0.75;">
+                    <div style="font-size:2rem; margin-bottom:8px;">🔔</div>
+                    <div style="font-weight:bold; margin-bottom:4px;">No replies yet</div>
+                    <div style="font-size:0.9em;">When someone replies to your threads or quotes your comments (&gt;&gt;No.), you'll be notified here!</div>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        for (const n of res.notifications) {
+            const timeAgo = formatTimeAgo(n.created_at);
+            const snippet = escapeHtml(n.comment.length > 120 ? n.comment.substring(0, 120) + '...' : n.comment);
+            const poster = escapeHtml(n.name || 'Anonymous');
+            html += `
+                <div style="border:1px solid var(--border-color); border-radius:6px; padding:10px; background:rgba(0,0,0,0.03);">
+                    <div style="display:flex; justify-content:space-between; font-size:0.8em; opacity:0.8; margin-bottom:4px;">
+                        <span><b style="color:var(--main-accent);">/${n.board}/</b> in <i>${escapeHtml(n.subject || 'Thread')}</i></span>
+                        <span>${timeAgo}</span>
+                    </div>
+                    <div style="font-size:0.85em; font-weight:bold; color:var(--text-color); margin-bottom:4px;">
+                        ${poster} replied:
+                    </div>
+                    <div style="font-size:0.9em; margin-bottom:6px; font-style:italic;">
+                        "${snippet}"
+                    </div>
+                    <div style="text-align:right;">
+                        <a href="?b=${n.board}#thread_${n.thread_id}" onclick="closeNotificationsModal()" style="font-size:0.8em; font-weight:bold; color:var(--main-accent); text-decoration:none;">
+                            View in Thread [➜]
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    } catch (err) {
+        container.innerHTML = `<div style="color:red; text-align:center; padding:20px;">Failed to load notifications: ${err.message}</div>`;
+    }
+}
+
+function closeNotificationsModal() {
+    const modal = document.getElementById('notificationsModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function formatTimeAgo(ts) {
+    const diff = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
 }
 
 // --- 4CHAN-STYLE AUTO-POLLING ---
@@ -641,6 +902,11 @@ function startAutoUpdate() {
     autoUpdateTimer = setInterval(() => {
         if (!isAutoUpdateEnabled) return;
         if (document.hidden) return; // Don't poll if browser tab is in background
+
+        // Also sync notifications and watchlist silently in background
+        if (currentUser) {
+            syncUserPerks();
+        }
 
         // Detect if archive view
         const isArch = new URLSearchParams(window.location.search).get('view') === 'archive';
