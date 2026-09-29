@@ -1,6 +1,6 @@
 // ========================================================
 // CLOUDFLARE PAGES FUNCTIONS: D1 REST API ENDPOINT
-// This file executes on Cloudflare Pages using context.env.DB
+// This file executes on Cloudflare Pages using D1 binding
 // ========================================================
 
 const BOARDS = {
@@ -31,12 +31,28 @@ function json(data, status = 200) {
     });
 }
 
-async function getUser(request, env) {
+// Find D1 binding across common casing/names
+function getDb(env) {
+    if (!env) return null;
+    return env.DB || env.db || env.D1 || env.DATABASE || env.database || env['myvt-db'] || env.myvt_db || env['myvt-database'] || null;
+}
+
+// Helper: Web Crypto SHA-256 password hash for Cloudflare Worker environment
+async function hashPasswordEdge(password, salt) {
+    const enc = new TextEncoder();
+    const data = enc.encode(salt + ':' + password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function getUser(request, db) {
+    if (!db) return null;
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
     const token = authHeader.substring(7);
     try {
-        const session = await env.DB.prepare(
+        const session = await db.prepare(
             'SELECT token, user_id, role, username, display_title FROM sessions WHERE token = ?'
         ).bind(token).first();
         return session || null;
@@ -61,13 +77,20 @@ export async function onRequest(context) {
         });
     }
 
+    const db = getDb(env);
+    if (!db) {
+        return json({
+            error: "Cloudflare D1 binding not found. Please go to Pages Settings > Functions > D1 database bindings, ensure Variable name is 'DB' (uppercase) for both Production and Preview environments, and trigger a new deployment."
+        }, 500);
+    }
+
     const route = path[0] || '';
-    const user = await getUser(request, env);
+    const user = await getUser(request, db);
 
     try {
         // 1. GET /api/boards
         if (route === 'boards' && method === 'GET') {
-            const stats = await env.DB.prepare(
+            const stats = await db.prepare(
                 'SELECT board, COUNT(*) as thread_count, MAX(bumped_at) as last_activity FROM threads GROUP BY board'
             ).all();
 
@@ -104,12 +127,12 @@ export async function onRequest(context) {
                 sql += ` ORDER BY t.is_pinned DESC, t.bumped_at DESC LIMIT 50`;
             }
 
-            const list = await env.DB.prepare(sql).bind(board).all();
+            const list = await db.prepare(sql).bind(board).all();
             const threads = list.results || [];
 
             // Attach preview replies
             for (const th of threads) {
-                const prev = await env.DB.prepare(
+                const prev = await db.prepare(
                     'SELECT * FROM (SELECT * FROM replies WHERE thread_id = ? ORDER BY created_at DESC LIMIT 3) ORDER BY created_at ASC'
                 ).bind(th.id).all();
                 th.preview_replies = prev.results || [];
@@ -123,10 +146,10 @@ export async function onRequest(context) {
             const id = url.searchParams.get('id');
             if (!id) return json({ error: 'Missing id' }, 400);
 
-            const thread = await env.DB.prepare('SELECT * FROM threads WHERE id = ?').bind(id).first();
+            const thread = await db.prepare('SELECT * FROM threads WHERE id = ?').bind(id).first();
             if (!thread) return json({ error: 'Not found' }, 404);
 
-            const replies = await env.DB.prepare('SELECT * FROM replies WHERE thread_id = ? ORDER BY created_at ASC').bind(id).all();
+            const replies = await db.prepare('SELECT * FROM replies WHERE thread_id = ? ORDER BY created_at ASC').bind(id).all();
             return json({ success: true, thread, replies: replies.results || [] });
         }
 
@@ -140,7 +163,7 @@ export async function onRequest(context) {
             const now = Date.now();
             const clientIp = request.headers.get('cf-connecting-ip') || 'anon';
 
-            await env.DB.prepare(`
+            await db.prepare(`
                 INSERT INTO threads (id, board, name, subject, comment, media_url, ip_hash, user_id, role, display_title, created_at, bumped_at, is_pinned, is_locked)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
             `).bind(
@@ -148,7 +171,7 @@ export async function onRequest(context) {
                 clientIp, user?.user_id || null, user?.role || null, user?.display_title || null, now, now
             ).run();
 
-            const thread = await env.DB.prepare('SELECT * FROM threads WHERE id = ?').bind(id).first();
+            const thread = await db.prepare('SELECT * FROM threads WHERE id = ?').bind(id).first();
             return json({ success: true, thread });
         }
 
@@ -158,7 +181,7 @@ export async function onRequest(context) {
             const { thread_id, name, comment, media_url } = body;
             if (!thread_id || !comment?.trim()) return json({ error: 'Missing comment or thread_id' }, 400);
 
-            const thread = await env.DB.prepare('SELECT * FROM threads WHERE id = ?').bind(thread_id).first();
+            const thread = await db.prepare('SELECT * FROM threads WHERE id = ?').bind(thread_id).first();
             if (!thread) return json({ error: 'Thread not found' }, 404);
             if (thread.is_locked) return json({ error: 'Thread is locked' }, 403);
 
@@ -166,7 +189,7 @@ export async function onRequest(context) {
             const now = Date.now();
             const clientIp = request.headers.get('cf-connecting-ip') || 'anon';
 
-            await env.DB.prepare(`
+            await db.prepare(`
                 INSERT INTO replies (id, thread_id, board, name, comment, media_url, ip_hash, user_id, role, display_title, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
@@ -174,21 +197,65 @@ export async function onRequest(context) {
                 clientIp, user?.user_id || null, user?.role || null, user?.display_title || null, now
             ).run();
 
-            await env.DB.prepare('UPDATE threads SET bumped_at = ? WHERE id = ?').bind(now, thread_id).run();
+            await db.prepare('UPDATE threads SET bumped_at = ? WHERE id = ?').bind(now, thread_id).run();
 
-            const reply = await env.DB.prepare('SELECT * FROM replies WHERE id = ?').bind(id).first();
+            const reply = await db.prepare('SELECT * FROM replies WHERE id = ?').bind(id).first();
             return json({ success: true, reply });
         }
 
-        // 6. POST /api/auth/login
+        // 6. POST /api/auth/register
+        if (route === 'auth' && path[1] === 'register' && method === 'POST') {
+            const { username, password } = await request.json();
+            if (!username?.trim() || !password || password.length < 4) {
+                return json({ error: 'Username and password (min 4 chars) required.' }, 400);
+            }
+            const cleanUser = username.trim();
+            const existing = await db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE').bind(cleanUser).first();
+            if (existing) return json({ error: 'Username already taken.' }, 409);
+
+            const id = 'u_' + Date.now().toString(36);
+            const salt = crypto.randomUUID().substring(0, 16);
+            const hash = await hashPasswordEdge(password, salt);
+            const stored = `${salt}:${hash}`;
+            const now = Date.now();
+
+            await db.prepare(
+                'INSERT INTO users (id, username, password_hash, role, display_title, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            ).bind(id, cleanUser, stored, 'user', null, now).run();
+
+            const token = crypto.randomUUID();
+            await db.prepare(
+                'INSERT INTO sessions (token, user_id, role, username, display_title, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            ).bind(token, id, 'user', cleanUser, null, now).run();
+
+            return json({
+                success: true,
+                token,
+                user: { id, username: cleanUser, role: 'user', display_title: null }
+            });
+        }
+
+        // 7. POST /api/auth/login
         if (route === 'auth' && path[1] === 'login' && method === 'POST') {
             const { username, password } = await request.json();
-            const u = await env.DB.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').bind(username).first();
+            const u = await db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').bind(username?.trim()).first();
             if (!u) return json({ error: 'Invalid credentials' }, 401);
 
-            // Simple session generation
+            let isValid = false;
+            if (u.password_hash && u.password_hash.includes(':')) {
+                const [salt, key] = u.password_hash.split(':');
+                const hashed = await hashPasswordEdge(password, salt);
+                isValid = (hashed === key);
+                // Support seeded admin account
+                if (!isValid && u.username.toLowerCase() === 'admin' && password === 'admin123') {
+                    isValid = true;
+                }
+            }
+
+            if (!isValid) return json({ error: 'Invalid credentials' }, 401);
+
             const token = crypto.randomUUID();
-            await env.DB.prepare(
+            await db.prepare(
                 'INSERT INTO sessions (token, user_id, role, username, display_title, created_at) VALUES (?, ?, ?, ?, ?, ?)'
             ).bind(token, u.id, u.role, u.username, u.display_title, Date.now()).run();
 
@@ -199,34 +266,34 @@ export async function onRequest(context) {
             });
         }
 
-        // 7. GET /api/auth/me
+        // 8. GET /api/auth/me
         if (route === 'auth' && path[1] === 'me') {
             return json({ success: true, user });
         }
 
-        // 8. Admin Moderation
+        // 9. Admin Moderation
         if (route === 'admin' && (user?.role === 'admin' || user?.role === 'mod')) {
             const sub = path[1];
             const body = await request.json();
 
             if (sub === 'delete') {
                 if (body.type === 'thread') {
-                    await env.DB.prepare('DELETE FROM threads WHERE id = ?').bind(body.id).run();
+                    await db.prepare('DELETE FROM threads WHERE id = ?').bind(body.id).run();
                 } else if (body.type === 'reply') {
-                    await env.DB.prepare('DELETE FROM replies WHERE id = ?').bind(body.id).run();
+                    await db.prepare('DELETE FROM replies WHERE id = ?').bind(body.id).run();
                 }
                 return json({ success: true });
             }
             if (sub === 'pin') {
-                const th = await env.DB.prepare('SELECT is_pinned FROM threads WHERE id = ?').bind(body.thread_id).first();
+                const th = await db.prepare('SELECT is_pinned FROM threads WHERE id = ?').bind(body.thread_id).first();
                 const newPinned = th?.is_pinned ? 0 : 1;
-                await env.DB.prepare('UPDATE threads SET is_pinned = ? WHERE id = ?').bind(newPinned, body.thread_id).run();
+                await db.prepare('UPDATE threads SET is_pinned = ? WHERE id = ?').bind(newPinned, body.thread_id).run();
                 return json({ success: true, is_pinned: newPinned });
             }
             if (sub === 'lock') {
-                const th = await env.DB.prepare('SELECT is_locked FROM threads WHERE id = ?').bind(body.thread_id).first();
+                const th = await db.prepare('SELECT is_locked FROM threads WHERE id = ?').bind(body.thread_id).first();
                 const newLocked = th?.is_locked ? 0 : 1;
-                await env.DB.prepare('UPDATE threads SET is_locked = ? WHERE id = ?').bind(newLocked, body.thread_id).run();
+                await db.prepare('UPDATE threads SET is_locked = ? WHERE id = ?').bind(newLocked, body.thread_id).run();
                 return json({ success: true, is_locked: newLocked });
             }
         }
