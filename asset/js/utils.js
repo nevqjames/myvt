@@ -26,7 +26,7 @@ function formatComment(text) {
         const isMe = MY_POSTS.includes(id);
         const youTag = isMe ? ` <span style="font-weight:bold; font-style:italic; font-size:0.9em;">(You)</span>` : "";
         
-        return `<a href="#post_${id}" class="quote-link">>>${id.substring(1,8)}</a>${youTag}`;
+        return `<a href="#post_${id}" class="quote-link" data-post-id="${id}">>>${id.substring(1,8)}</a>${youTag}`;
     });
     
     // 2. NEW: Auto-Linkify URLs (http/https)
@@ -122,6 +122,7 @@ function generateBacklinks(scopeElement = null) {
                     const newLink = document.createElement('a');
                     newLink.href = `#post_${replierId}`;
                     newLink.className = 'backlink';
+                    newLink.setAttribute('data-post-id', replierId);
                     newLink.innerHTML = `&gt;&gt;${displayId}`;
                     
                     // Add Highlight Events
@@ -133,4 +134,149 @@ function generateBacklinks(scopeElement = null) {
             }
         });
     });
+}
+
+// ==========================================
+// TOAST NOTIFICATION
+// ==========================================
+let toastTimer = null;
+function showToast(message, duration = 3000) {
+    let toast = document.getElementById('siteToast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'siteToast';
+        toast.className = 'site-toast';
+        document.body.appendChild(toast);
+    }
+    toast.innerText = message;
+    toast.classList.add('show');
+
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+    }, duration);
+}
+
+// ==========================================
+// SEAMLESS POST & LINKBACK NAVIGATION
+// ==========================================
+function navigateToPost(postId, triggerElement = null) {
+    if (!postId) return;
+
+    const targetEl = document.getElementById('post_' + postId);
+    if (targetEl) {
+        // Post is already on the current page: smooth scroll & pulse highlight
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetEl.classList.remove('post-highlight-active');
+        void targetEl.offsetWidth; // trigger reflow for animation restart
+        targetEl.classList.add('post-highlight-active');
+        setTimeout(() => {
+            targetEl.classList.remove('post-highlight-active');
+        }, 2500);
+        return;
+    }
+
+    // Post is NOT on the current view:
+    // Check if we are on the Board View and the click came from inside a thread card
+    if (!currentThreadId) {
+        const threadCard = triggerElement ? triggerElement.closest('.thread') : null;
+        if (threadCard && threadCard.id) {
+            const threadId = threadCard.id.replace('thread_', '');
+            sessionStorage.setItem('pending_scroll_post', postId);
+            window.location.hash = '#thread_' + threadId;
+            return;
+        }
+    }
+
+    // If inside thread view and post was not found (e.g. deleted reply)
+    showToast(`Referenced post >>${postId.substring(1, 9)} not found.`);
+}
+
+// Intercept all quote-link and backlink clicks so they never crash into board mode
+document.addEventListener('click', (e) => {
+    const link = e.target.closest('.quote-link, .backlink');
+    if (!link) return;
+
+    // Prevent default browser jump which replaces the hash with #post_...
+    e.preventDefault();
+    e.stopPropagation();
+
+    const postId = link.getAttribute('data-post-id') || (link.getAttribute('href') || '').replace('#post_', '');
+    if (postId) {
+        navigateToPost(postId, link);
+    }
+});
+
+// ==========================================
+// FLOATING HOVER PREVIEWS FOR QUOTES & BACKLINKS
+// ==========================================
+let previewTooltip = null;
+
+function initHoverPreviews() {
+    if (!previewTooltip) {
+        previewTooltip = document.createElement('div');
+        previewTooltip.id = 'postPreviewPopup';
+        previewTooltip.className = 'post-preview-popup';
+        document.body.appendChild(previewTooltip);
+    }
+
+    document.addEventListener('mouseover', (e) => {
+        const link = e.target.closest('.quote-link, .backlink');
+        if (!link) return;
+
+        const postId = link.getAttribute('data-post-id') || (link.getAttribute('href') || '').replace('#post_', '');
+        if (!postId) return;
+
+        const targetEl = document.getElementById('post_' + postId);
+        if (!targetEl) return;
+
+        highlightPost(postId);
+
+        // Populate hover preview tooltip with a cloned snapshot
+        const clone = targetEl.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+        
+        previewTooltip.innerHTML = '';
+        previewTooltip.appendChild(clone);
+        previewTooltip.classList.add('visible');
+
+        // Position tooltip clamped to viewport
+        const rect = link.getBoundingClientRect();
+        const popupWidth = Math.min(480, window.innerWidth - 30);
+        let left = rect.left;
+        if (left + popupWidth > window.innerWidth - 15) {
+            left = window.innerWidth - popupWidth - 15;
+        }
+        if (left < 10) left = 10;
+
+        let top = rect.bottom + 8;
+        if (top + 220 > window.innerHeight && rect.top > 220) {
+            top = rect.top - 8 - (previewTooltip.offsetHeight || 140);
+        }
+
+        previewTooltip.style.left = `${left}px`;
+        previewTooltip.style.top = `${top}px`;
+    });
+
+    document.addEventListener('mouseout', (e) => {
+        const link = e.target.closest('.quote-link, .backlink');
+        if (!link) return;
+
+        const postId = link.getAttribute('data-post-id') || (link.getAttribute('href') || '').replace('#post_', '');
+        if (postId) {
+            unhighlightPost(postId);
+        }
+
+        if (previewTooltip) {
+            previewTooltip.classList.remove('visible');
+        }
+    });
+}
+
+// Auto-initialize hover previews on load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initHoverPreviews);
+} else {
+    initHoverPreviews();
 }

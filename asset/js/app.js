@@ -48,6 +48,24 @@ function router() {
     const formWrapper = document.getElementById('formWrapper');
     const topDivider = document.getElementById('topDivider');
 
+    // 0. POST ANCHOR SAFETY CHECK:
+    // If the hash is #post_..., NEVER kick the user out of the thread view!
+    if (hash.startsWith("#post_")) {
+        const targetPostId = hash.replace("#post_", "");
+        if (currentThreadId) {
+            // Already in thread view: scroll and highlight smoothly
+            const el = document.getElementById('post_' + targetPostId);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.classList.remove('post-highlight-active');
+                void el.offsetWidth;
+                el.classList.add('post-highlight-active');
+                setTimeout(() => el.classList.remove('post-highlight-active'), 2500);
+            }
+            return;
+        }
+    }
+
     document.body.classList.remove('night-mode');
 
     // 1. HOME PAGE (No Board Selected)
@@ -82,12 +100,26 @@ function router() {
     const isArchiveView = urlParam.get('view') === 'archive';
 
     if (hash.startsWith("#thread_")) {
+        // Parse thread and potential post anchor (e.g. #thread_123#post_456)
+        let threadPart = hash.replace("#thread_", "");
+        let postPart = null;
+        if (threadPart.includes("#post_")) {
+            const splitHash = threadPart.split("#post_");
+            threadPart = splitHash[0];
+            postPart = splitHash[1];
+        }
+
         // Thread Mode
         if (boardView) boardView.style.display = "none";
         if (threadView) threadView.style.display = "block";
         if (formWrapper) formWrapper.style.display = "block";
-        currentThreadId = hash.replace("#thread_", "");
+        currentThreadId = threadPart;
         lastThreadSignature = "";
+
+        if (postPart) {
+            sessionStorage.setItem('pending_scroll_post', postPart);
+        }
+
         loadThreadView(currentThreadId);
     } else {
         // Board Mode
@@ -585,6 +617,22 @@ async function loadThreadView(threadId, isSilent = false) {
                     box.value += pendingQuote + '\n';
                     box.focus();
                 }
+            }
+
+            // Check if there was a pending post to scroll & highlight
+            const pendingPost = sessionStorage.getItem('pending_scroll_post');
+            if (pendingPost) {
+                sessionStorage.removeItem('pending_scroll_post');
+                setTimeout(() => {
+                    const targetEl = document.getElementById('post_' + pendingPost);
+                    if (targetEl) {
+                        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        targetEl.classList.remove('post-highlight-active');
+                        void targetEl.offsetWidth;
+                        targetEl.classList.add('post-highlight-active');
+                        setTimeout(() => targetEl.classList.remove('post-highlight-active'), 2500);
+                    }
+                }, 150);
             }
         }
     } catch (err) {
