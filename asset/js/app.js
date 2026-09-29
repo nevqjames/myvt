@@ -1,5 +1,6 @@
 // ==========================================
 // APP.JS - Core Logic, Routing, Rendering
+// Connected to Cloudflare D1 / SQLite REST API
 // ==========================================
 
 // --- NSFW GATE ---
@@ -7,8 +8,10 @@ function checkNSFWGate() {
     if (currentBoard && BOARDS[currentBoard] && BOARDS[currentBoard].type === 'nsfw') {
         if (!sessionStorage.getItem('nsfw_consent')) {
             document.body.classList.add('gate-active');
-            document.getElementById('nsfwGate').style.display = 'flex';
-            document.getElementById('gateBoardName').innerText = currentBoard;
+            const gate = document.getElementById('nsfwGate');
+            if (gate) gate.style.display = 'flex';
+            const gateName = document.getElementById('gateBoardName');
+            if (gateName) gateName.innerText = currentBoard;
             return false;
         }
     }
@@ -18,13 +21,18 @@ function checkNSFWGate() {
 function acceptNSFW() {
     sessionStorage.setItem('nsfw_consent', 'true');
     document.body.classList.remove('gate-active');
-    document.getElementById('nsfwGate').style.display = 'none';
+    const gate = document.getElementById('nsfwGate');
+    if (gate) gate.style.display = 'none';
     router();
 }
 
 // --- ROUTER ---
 window.addEventListener('hashchange', router);
-window.addEventListener('load', router);
+window.addEventListener('load', () => {
+    initAuth();
+    router();
+    startAutoUpdate();
+});
 
 function router() {
     const hash = window.location.hash;
@@ -41,56 +49,62 @@ function router() {
 
     // 1. HOME PAGE (No Board Selected)
     if (!currentBoard || !BOARDS[currentBoard]) {
-        homeView.style.display = "block";
-        boardView.style.display = "none";
-        threadView.style.display = "none";
-        formWrapper.style.display = "none";
-        topDivider.style.display = "none";
+        if (homeView) homeView.style.display = "block";
+        if (boardView) boardView.style.display = "none";
+        if (threadView) threadView.style.display = "none";
+        if (formWrapper) formWrapper.style.display = "none";
+        if (topDivider) topDivider.style.display = "none";
         document.getElementById('boardTitle').innerText = "MYVT - Portal";
         document.title = "MYVT - Portal";
+        loadPortalStats();
         return;
     }
 
     // 2. BOARD / THREAD MODE
-    homeView.style.display = "none";
-    topDivider.style.display = "block";
+    if (homeView) homeView.style.display = "none";
+    if (topDivider) topDivider.style.display = "block";
     
     // Set Titles & Theme
     document.title = BOARDS[currentBoard].title;
     document.getElementById('boardTitle').innerText = BOARDS[currentBoard].title;
     
-    if (BOARDS[currentBoard].type === 'nsfw') document.body.classList.add('night-mode');
+    if (BOARDS[currentBoard].type === 'nsfw') {
+        document.body.classList.add('night-mode');
+    }
 
     // Check Gate
     if (!checkNSFWGate()) return;
 
-    // Detect Archive Mode
     const urlParam = new URLSearchParams(window.location.search);
     const isArchiveView = urlParam.get('view') === 'archive';
 
     if (hash.startsWith("#thread_")) {
         // Thread Mode
-        formWrapper.style.display = "block"; // Default show, hidden later if locked
+        if (boardView) boardView.style.display = "none";
+        if (threadView) threadView.style.display = "block";
+        if (formWrapper) formWrapper.style.display = "block";
         currentThreadId = hash.replace("#thread_", "");
         loadThreadView(currentThreadId);
     } else {
         // Board Mode
         currentThreadId = null;
-        // Hide "New Thread" form if in Archive Mode
-        formWrapper.style.display = isArchiveView ? "none" : "block"; 
+        if (threadView) threadView.style.display = "none";
+        if (boardView) boardView.style.display = "block";
+        if (formWrapper) formWrapper.style.display = isArchiveView ? "none" : "block"; 
         loadBoardView(isArchiveView);
     }
+
+    renderBoardNav();
 }
 
-// --- DYNAMIC HEADER ---
-window.addEventListener('DOMContentLoaded', () => {
+// --- DYNAMIC HEADER NAVIGATION ---
+function renderBoardNav() {
     const navContainer = document.getElementById('navBoards');
-    if (!currentBoard || !BOARDS[currentBoard]) return; 
+    if (!navContainer) return;
     
-    const currentType = BOARDS[currentBoard].type;
+    const currentType = (currentBoard && BOARDS[currentBoard]) ? BOARDS[currentBoard].type : 'sfw';
     let html = "";
     
-    // 1. Board Links
     for (const [key, data] of Object.entries(BOARDS)) {
         if (data.type === currentType) {
             const isActive = (key === currentBoard) ? 'style="font-weight:900; border-bottom: 2px solid;"' : '';
@@ -98,335 +112,552 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 2. Archive Toggle Links
-    html += `<div style="margin-top:8px; font-size:0.9em; opacity:0.9;">`;
-    const urlParam = new URLSearchParams(window.location.search);
-    const isArchived = urlParam.get('view') === 'archive';
-    
-    if (isArchived) {
-        html += `[ <a href="?b=${currentBoard}">Current Threads</a> ] 
-                 [ <span style="font-weight:bold; color:var(--header-color);">Archives</span> ]`;
-    } else {
-        html += `[ <span style="font-weight:bold; color:var(--header-color);">Current Threads</span> ] 
-                 [ <a href="?b=${currentBoard}&view=archive">Archives</a> ]`;
+    // Add Archive Toggle if inside a board
+    if (currentBoard && BOARDS[currentBoard]) {
+        const isArch = new URLSearchParams(window.location.search).get('view') === 'archive';
+        const archLabel = isArch ? '⚡ Active' : '📦 Archive';
+        const archHref = isArch ? `?b=${currentBoard}` : `?b=${currentBoard}&view=archive`;
+        html += ` [ <a href="${archHref}" style="opacity:0.85; font-style:italic;">${archLabel}</a> ]`;
     }
-    html += `</div>`;
 
-    // 3. Return Link (NSFW only)
-    if (currentType === 'nsfw') html += `<div style="font-size:0.8em; margin-top:5px;">[ <a href="?b=myvt">Return to Surface</a> ]</div>`;
-    
     navContainer.innerHTML = html;
+}
+
+// --- PORTAL STATS ON HOME VIEW ---
+async function loadPortalStats() {
+    try {
+        const data = await apiFetch('/boards');
+        if (data.success && data.boards) {
+            for (const [key, b] of Object.entries(data.boards)) {
+                const el = document.getElementById(`stat_${key}`);
+                if (el) {
+                    el.innerText = `(${b.thread_count} threads)`;
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Could not load board stats:', err);
+    }
+}
+
+// --- LOAD BOARD VIEW ---
+async function loadBoardView(isArchive = false, isSilent = false) {
+    const container = document.getElementById('threadList');
+    if (!container) return;
+    
+    if (!isSilent) {
+        container.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--text-color);">Loading ${isArchive ? 'archived ' : ''}threads...</div>`;
+    }
+
+    // Configure form for new thread
+    const formTitle = document.getElementById('formTitle');
+    const subjectInput = document.getElementById('subjectInput');
+    const submitBtn = document.getElementById('submitBtn');
+    if (!isSilent) {
+        if (formTitle) formTitle.innerText = isArchive ? "Board Archive" : "Create New Thread";
+        if (subjectInput) subjectInput.style.display = "block";
+        if (submitBtn) submitBtn.innerText = "Submit New Thread";
+    }
+
+    try {
+        const viewParam = isArchive ? '&view=archive' : '';
+        const res = await apiFetch(`/threads?b=${currentBoard}${viewParam}`);
+        const threads = res.threads || [];
+
+        if (threads.length === 0) {
+            if (!isSilent) {
+                container.innerHTML = `<div style="text-align:center; padding: 40px; color: var(--text-color);">No ${isArchive ? 'archived ' : ''}threads found on /${currentBoard}/.</div>`;
+            }
+            return;
+        }
+
+        let html = "";
+        for (const th of threads) {
+            html += renderThreadPreview(th);
+        }
+
+        // Preserve scroll position during silent auto-updates
+        const prevScroll = window.scrollY;
+        container.innerHTML = html;
+        if (isSilent) {
+            window.scrollTo(0, prevScroll);
+        }
+        generateBacklinks();
+    } catch (err) {
+        if (!isSilent) {
+            container.innerHTML = `<div style="color:red; text-align:center; padding: 20px;">Failed to load board: ${err.message}</div>`;
+        }
+    }
+}
+
+// Render Thread Card in Board Index
+function renderThreadPreview(th) {
+    const isOwner = MY_POSTS.includes(th.id);
+    const youTag = isOwner ? ` <span style="font-weight:bold; font-style:italic; font-size:0.9em;">(You)</span>` : "";
+    const pinnedBadge = th.is_pinned ? `<span style="color:#d97706; font-weight:bold; margin-right:6px;">📌 [Pinned]</span>` : '';
+    const lockedBadge = th.is_locked ? `<span style="color:#dc2626; font-weight:bold; margin-right:6px;">🔒 [Locked]</span>` : '';
+    const roleBadge = th.display_title ? `<span style="background:var(--main-accent); color:#fff; border-radius:4px; padding:1px 5px; font-size:0.85em; margin-right:4px;">${escapeHtml(th.display_title)}</span>` : '';
+
+    const dateStr = new Date(th.created_at).toLocaleString();
+    const mediaHtml = renderMedia(th.media_url);
+
+    // Mod controls
+    let modControls = "";
+    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'mod')) {
+        modControls = `
+            <span style="margin-left: 10px; font-size: 0.9em;">
+                [<a href="#" onclick="togglePin('${th.id}'); return false;">${th.is_pinned ? 'Unpin' : 'Pin'}</a>]
+                [<a href="#" onclick="toggleLock('${th.id}'); return false;">${th.is_locked ? 'Unlock' : 'Lock'}</a>]
+                [<a href="#" onclick="adminDelete('thread', '${th.id}'); return false;" style="color:red;">Delete</a>]
+            </span>
+        `;
+    }
+
+    // Preview replies HTML
+    let repliesHtml = "";
+    if (th.preview_replies && th.preview_replies.length > 0) {
+        for (const r of th.preview_replies) {
+            repliesHtml += renderReplyCard(r, th.id, true);
+        }
+    }
+
+    const replyCountText = th.reply_count > 0 
+        ? `${th.reply_count} ${th.reply_count === 1 ? 'reply' : 'replies'}` 
+        : `No replies yet`;
+
+    return `
+        <div class="thread" id="thread_${th.id}">
+            <div class="op" id="post_${th.id}">
+                ${mediaHtml}
+                <div class="post-content">
+                    <div class="post-header">
+                        ${pinnedBadge}
+                        ${lockedBadge}
+                        <span class="subject">${escapeHtml(th.subject || '')}</span>
+                        ${roleBadge}
+                        <span class="name">${escapeHtml(th.name || 'Anonymous')}</span>
+                        <span class="date">${dateStr}</span>
+                        <span class="post-id">No. <a href="?b=${currentBoard}#thread_${th.id}">${th.id.substring(1, 9)}</a></span>
+                        ${youTag}
+                        <a href="?b=${currentBoard}#thread_${th.id}" class="reply-link">[Reply ➜]</a>
+                        ${modControls}
+                    </div>
+                    <div class="backlink-container" id="backlinks_${th.id}"></div>
+                    <div class="comment">${formatComment(th.comment)}</div>
+                    <div style="font-size:0.85em; color:var(--text-color); opacity:0.8; margin-top:8px;">
+                        [ <a href="?b=${currentBoard}#thread_${th.id}">${replyCountText}</a> ]
+                    </div>
+                </div>
+            </div>
+            <div class="replies" style="margin-left: 20px;">
+                ${repliesHtml}
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border-color: var(--border-color);">
+    `;
+}
+
+// --- LOAD SINGLE THREAD VIEW ---
+async function loadThreadView(threadId, isSilent = false) {
+    const opContainer = document.getElementById('opContainer');
+    const repliesContainer = document.getElementById('repliesContainer');
+    const formTitle = document.getElementById('formTitle');
+    const subjectInput = document.getElementById('subjectInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const formWrapper = document.getElementById('formWrapper');
+
+    if (!opContainer || !repliesContainer) return;
+
+    if (!isSilent) {
+        opContainer.innerHTML = `<div style="text-align:center; padding: 20px;">Loading thread #${threadId}...</div>`;
+        repliesContainer.innerHTML = "";
+    }
+
+    // Configure form for reply
+    if (!isSilent) {
+        if (formTitle) formTitle.innerText = `Reply to Thread #${threadId.substring(1, 9)}`;
+        if (subjectInput) subjectInput.style.display = "none";
+        if (submitBtn) submitBtn.innerText = "Submit Reply";
+    }
+
+    try {
+        const data = await apiFetch(`/thread?id=${threadId}`);
+        const th = data.thread;
+        const replies = data.replies || [];
+
+        if (th.is_locked && formWrapper) {
+            formWrapper.style.display = "none";
+        } else if (formWrapper) {
+            formWrapper.style.display = "block";
+        }
+
+        // Render OP if not already rendered or if not silent
+        if (!isSilent || !document.getElementById(`post_${th.id}`)) {
+            const isOwner = MY_POSTS.includes(th.id);
+            const youTag = isOwner ? ` <span style="font-weight:bold; font-style:italic; font-size:0.9em;">(You)</span>` : "";
+            const pinnedBadge = th.is_pinned ? `<span style="color:#d97706; font-weight:bold; margin-right:6px;">📌 [Pinned]</span>` : '';
+            const lockedBadge = th.is_locked ? `<span style="color:#dc2626; font-weight:bold; margin-right:6px;">🔒 [Locked]</span>` : '';
+            const roleBadge = th.display_title ? `<span style="background:var(--main-accent); color:#fff; border-radius:4px; padding:1px 5px; font-size:0.85em; margin-right:4px;">${escapeHtml(th.display_title)}</span>` : '';
+            const dateStr = new Date(th.created_at).toLocaleString();
+            const mediaHtml = renderMedia(th.media_url);
+
+            let modControls = "";
+            if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'mod')) {
+                modControls = `
+                    <span style="margin-left: 10px; font-size: 0.9em;">
+                        [<a href="#" onclick="togglePin('${th.id}'); return false;">${th.is_pinned ? 'Unpin' : 'Pin'}</a>]
+                        [<a href="#" onclick="toggleLock('${th.id}'); return false;">${th.is_locked ? 'Unlock' : 'Lock'}</a>]
+                        [<a href="#" onclick="adminDelete('thread', '${th.id}'); return false;" style="color:red;">Delete</a>]
+                    </span>
+                `;
+            }
+
+            opContainer.innerHTML = `
+                <div class="op" id="post_${th.id}">
+                    ${mediaHtml}
+                    <div class="post-content">
+                        <div class="post-header">
+                            ${pinnedBadge}
+                            ${lockedBadge}
+                            <span class="subject">${escapeHtml(th.subject || '')}</span>
+                            ${roleBadge}
+                            <span class="name">${escapeHtml(th.name || 'Anonymous')}</span>
+                            <span class="date">${dateStr}</span>
+                            <span class="post-id">No. <a href="javascript:void(0)" onclick="quotePost('${th.id}', '${th.id}')">${th.id.substring(1, 9)}</a></span>
+                            ${youTag}
+                            ${modControls}
+                        </div>
+                        <div class="backlink-container" id="backlinks_${th.id}"></div>
+                        <div class="comment">${formatComment(th.comment)}</div>
+                    </div>
+                </div>
+                <hr style="margin: 15px 0; border-color: var(--border-color);">
+            `;
+        }
+
+        // Render Replies
+        if (!isSilent) {
+            let repliesHtml = "";
+            for (const r of replies) {
+                repliesHtml += renderReplyCard(r, th.id, false);
+            }
+            repliesContainer.innerHTML = repliesHtml;
+        } else {
+            // In silent auto-update, only append new replies that arrived!
+            for (const r of replies) {
+                if (!document.getElementById(`post_${r.id}`)) {
+                    const temp = document.createElement('div');
+                    temp.innerHTML = renderReplyCard(r, th.id, false);
+                    repliesContainer.appendChild(temp.firstElementChild);
+                }
+            }
+        }
+
+        generateBacklinks();
+
+        // Check if there was a pending quote
+        if (!isSilent) {
+            const pendingQuote = sessionStorage.getItem('pending_quote');
+            if (pendingQuote) {
+                sessionStorage.removeItem('pending_quote');
+                const box = document.getElementById('commentInput');
+                if (box) {
+                    box.value += pendingQuote + '\n';
+                    box.focus();
+                }
+            }
+        }
+    } catch (err) {
+        if (!isSilent) {
+            opContainer.innerHTML = `<div style="color:red; text-align:center;">Failed to load thread: ${err.message}</div>`;
+        }
+    }
+}
+
+// Render Single Reply
+function renderReplyCard(r, threadId, isPreview = false) {
+    const isOwner = MY_POSTS.includes(r.id);
+    const youTag = isOwner ? ` <span style="font-weight:bold; font-style:italic; font-size:0.9em;">(You)</span>` : "";
+    const roleBadge = r.display_title ? `<span style="background:var(--main-accent); color:#fff; border-radius:4px; padding:1px 5px; font-size:0.85em; margin-right:4px;">${escapeHtml(r.display_title)}</span>` : '';
+    const dateStr = new Date(r.created_at).toLocaleString();
+    const mediaHtml = renderMedia(r.media_url);
+
+    let modControls = "";
+    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'mod')) {
+        modControls = `
+            <span style="margin-left: 8px; font-size: 0.85em;">
+                [<a href="#" onclick="adminDelete('reply', '${r.id}'); return false;" style="color:red;">Delete</a>]
+            </span>
+        `;
+    }
+
+    return `
+        <div class="reply-container" id="post_${r.id}" style="margin-bottom: 8px;">
+            <div class="reply">
+                ${mediaHtml}
+                <div class="post-content">
+                    <div class="post-header">
+                        ${roleBadge}
+                        <span class="name">${escapeHtml(r.name || 'Anonymous')}</span>
+                        <span class="date">${dateStr}</span>
+                        <span class="post-id">No. <a href="javascript:void(0)" onclick="quotePost('${r.id}', '${threadId}')">${r.id.substring(1, 9)}</a></span>
+                        ${youTag}
+                        ${modControls}
+                    </div>
+                    <div class="backlink-container" id="backlinks_${r.id}"></div>
+                    <div class="comment">${formatComment(r.comment)}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// --- POST SUBMISSION ---
+document.addEventListener('DOMContentLoaded', () => {
+    const postForm = document.getElementById('postForm');
+    if (!postForm) return;
+
+    postForm.onsubmit = async (e) => {
+        e.preventDefault();
+
+        const submitBtn = document.getElementById('submitBtn');
+        const nameInput = document.getElementById('nameInput');
+        const subjectInput = document.getElementById('subjectInput');
+        const commentInput = document.getElementById('commentInput');
+        const imageInput = document.getElementById('imageInput');
+
+        if (!commentInput.value.trim()) return;
+
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Posting...";
+
+        try {
+            if (currentThreadId) {
+                // Reply
+                const res = await apiFetch('/replies', {
+                    method: 'POST',
+                    body: {
+                        thread_id: currentThreadId,
+                        board: currentBoard,
+                        name: nameInput.value,
+                        comment: commentInput.value,
+                        media_url: imageInput.value
+                    }
+                });
+
+                if (res.success && res.reply) {
+                    MY_POSTS.push(res.reply.id);
+                    localStorage.setItem('my_posts', JSON.stringify(MY_POSTS));
+                    commentInput.value = "";
+                    imageInput.value = "";
+                    await loadThreadView(currentThreadId);
+                }
+            } else {
+                // New Thread
+                const res = await apiFetch('/threads', {
+                    method: 'POST',
+                    body: {
+                        board: currentBoard,
+                        name: nameInput.value,
+                        subject: subjectInput.value,
+                        comment: commentInput.value,
+                        media_url: imageInput.value
+                    }
+                });
+
+                if (res.success && res.thread) {
+                    MY_POSTS.push(res.thread.id);
+                    localStorage.setItem('my_posts', JSON.stringify(MY_POSTS));
+                    subjectInput.value = "";
+                    commentInput.value = "";
+                    imageInput.value = "";
+                    // Jump to new thread
+                    window.location.hash = `#thread_${res.thread.id}`;
+                }
+            }
+        } catch (err) {
+            alert("Posting Error: " + err.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerText = currentThreadId ? "Submit Reply" : "Submit Post";
+        }
+    };
 });
 
-// ==========================================
-// 5. VIEW LOGIC
-// ==========================================
+// --- ADMIN / MODERATOR ACTIONS ---
+async function adminDelete(type, id) {
+    if (!confirm(`Are you sure you want to delete this ${type}? This cannot be undone.`)) return;
 
-function loadBoardView(isArchiveMode) {
-
-    // --- RESET RELOAD FLAG ---
-    // User returned to board, so next time they click a thread, allow a reload again.
-    if (!window.location.hash.startsWith("#thread_")) {
-        sessionStorage.removeItem('thread_reloaded');
-    }
-    // -------------------------
-
-    document.getElementById('boardView').style.display = "block";
-    document.getElementById('threadView').style.display = "none";
-    document.getElementById('formTitle').innerText = "Create New Thread";
-    document.getElementById('subjectInput').style.display = "block";
-
-    if (isArchiveMode) {
-        document.getElementById('boardTitle').innerHTML += ` <span style="color:red; font-size:0.6em;">[ARCHIVE]</span>`;
-    }
-
-    // --- ARCHIVE FILTER LOGIC ---
-    const now = Date.now();
-    // Default to 3 days if config missing
-    const limit = (typeof ARCHIVE_TIME_MS !== 'undefined') ? ARCHIVE_TIME_MS : 259200000; 
-    const cutoff = now - limit;
-
-    let query = getBoardRef().orderByChild('lastUpdated');
-
-    if (isArchiveMode) {
-        // Get Old Threads
-        query = query.endAt(cutoff).limitToLast(50);
-    } else {
-        // Get Active Threads
-        query = query.startAt(cutoff);
-    }
-
-    query.on('value', (snapshot) => {
-        const div = document.getElementById('threadList');
-        div.innerHTML = "";
-        const data = snapshot.val();
-        
-        if (!data) {
-            div.innerHTML = `<div style="text-align:center; padding:20px; color:#666;">No threads found in this view.</div>`;
-            return;
-        }
-
-        const sortedThreads = [];
-        snapshot.forEach((childSnap) => { sortedThreads.push({ id: childSnap.key, ...childSnap.val() }); });
-        
-        sortedThreads.reverse().forEach((thread) => {
-            const totalReplies = thread.replies ? Object.keys(thread.replies).length : 0;
-            let threadHtml = renderThreadCard(thread.id, thread, true, totalReplies);
-
-            if (thread.replies) {
-                const repliesArr = Object.entries(thread.replies).sort((a, b) => a[1].timestamp - b[1].timestamp);
-                repliesArr.slice(-2).forEach(([rId, rData]) => {
-                    threadHtml += renderReply(rId, rData, thread.id);
-                });
-            }
-            threadHtml += '<hr class="thread-separator">';
-            div.innerHTML += threadHtml;
-        });
-    });
-}
-
-function loadThreadView(threadId) {
-
-    // --- FORCE SINGLE RELOAD SNIPPET ---
-    // If we haven't reloaded yet for this specific viewing session...
-    if (!sessionStorage.getItem('thread_reloaded')) {
-        sessionStorage.setItem('thread_reloaded', 'true'); // Mark as done
-        window.location.reload(); // Reload the page
-        return; // Stop script execution until reload completes
-    }
-
-    document.getElementById('boardView').style.display = "none";
-    document.getElementById('threadView').style.display = "block";
-    document.getElementById('formTitle').innerText = "Reply to Thread " + threadId.substring(1,8);
-    document.getElementById('subjectInput').style.display = "none";
-
-    // 1. Load OP
-    database.ref('boards/' + currentBoard + '/threads/' + threadId).on('value', (snap) => {
-        const op = snap.val();
-        if(!op) { 
-            if(window.location.hash.includes(threadId)) window.location.hash = ""; 
-            return; 
-        }
-        
-        document.getElementById('opContainer').innerHTML = renderThreadCard(threadId, op, false);
-
-        // --- NEW: CHECK FOR PENDING QUOTES ---
-        // Check if we came here from the Board View with a quote request
-        const pending = sessionStorage.getItem('pending_quote');
-        if (pending) {
-            const box = document.getElementById('commentInput');
-            box.value += pending + '\n';
-            sessionStorage.removeItem('pending_quote'); // Clear it so it doesn't happen again on refresh
-            document.getElementById('postForm').scrollIntoView();
-        }
-
-        // --- CHECK ARCHIVE LOCK ---
-        const limit = (typeof ARCHIVE_TIME_MS !== 'undefined') ? ARCHIVE_TIME_MS : 259200000;
-        const timeDiff = Date.now() - (op.lastUpdated || op.timestamp);
-        const formDiv = document.getElementById('formWrapper');
-
-        // Lock form if old AND not admin
-        if (timeDiff > limit && !isModMode) {
-            formDiv.innerHTML = `<div class="post-box" style="text-align:center; padding:20px; font-weight:bold; color:#777; background:var(--reply-bg);">⛔ This thread is archived and locked.</div>`;
-        } else {
-            // If the form was previously replaced by the lock message, we might need to reload 
-            // to get the form back when switching threads.
-            // For now, if the ID 'postForm' is missing, simply reload page to restore it.
-            if (!document.getElementById('postForm')) location.reload();
-        }
-
-        setTimeout(generateBacklinks, 200);
-    });
-
-    // 2. Load Replies
-    database.ref('boards/' + currentBoard + '/threads/' + threadId + '/replies').on('value', (snapshot) => {
-        const div = document.getElementById('repliesContainer');
-        div.innerHTML = ""; // Clear current list
-        
-        const data = snapshot.val();
-        if (data) {
-            Object.entries(data).forEach(([id, reply]) => {
-                div.innerHTML += renderReply(id, reply, threadId);
-            });
-        }
-        
-        // --- FIX: Run Backlinks Logic Immediately ---
-        // We run this AFTER the innerHTML is set, so the elements exist.
-        generateBacklinks(); 
-        
-        // Run it again after a tiny delay just in case the DOM was slow to paint (for mobile)
-        setTimeout(generateBacklinks, 100);
-    });
-
-}
-
-// ==========================================
-// 6. RENDERERS (UI)
-// ==========================================
-
-function renderThreadCard(id, data, isPreview, replyCount = 0) {
-    const date = new Date(data.timestamp).toLocaleString();
-    const replyLink = isPreview ? `<a href="#thread_${id}" class="reply-link">Reply ➜</a>` : "";
-    const ipHtml = isModMode ? `<span style="color: blue; font-weight:bold; font-size:0.8em;"> [IP: ${data.ip || '?'}]</span>` : "";
-    const delBtn = isModMode ? `<span class="admin-delete-btn" onclick="deleteThread('${id}')">[X]</span>` : "";
-
-    let summaryHtml = "";
-    if (isPreview && replyCount > 0) {
-        summaryHtml = `
-        <div class="thread-summary">
-            <span><span class="reply-count-num">${replyCount}</span> Replies</span>
-            <span style="cursor:pointer;" onclick="window.location.hash='#thread_${id}'">View Context &#9660;</span>
-        </div>`;
-    }
-
-    return `
-    <div class="thread-card" id="post_${id}">
-        <div class="post-info">
-            <span class="subject">${data.subject || ""}</span>
-            <span class="name">${data.name}</span>
-            <span class="time">${date}</span> 
-            <span class="post-id" onclick="quotePost('${id}', '${id}')">No. ${id.substring(1,8)}</span>
-            ${ipHtml} ${delBtn} ${replyLink}
-        </div>
-        <div class="post-content">
-            ${renderMedia(data.image)}
-            <blockquote class="comment">${formatComment(data.comment)}</blockquote>
-        </div>
-        ${summaryHtml}
-        <div class="backlink-container" id="backlinks_${id}"></div>
-    </div>`;
-}
-
-function renderReply(id, data, threadId) {
-    const date = new Date(data.timestamp).toLocaleString();
-    const ipHtml = isModMode ? `<span style="color: blue; font-weight:bold; font-size:0.8em;"> [IP: ${data.ip || '?'}]</span>` : "";
-    const delBtn = isModMode ? `<span class="admin-delete-btn" onclick="deleteReply('${threadId}', '${id}')">[X]</span>` : "";
-
-    return `
-    <div class="reply" id="post_${id}">
-        <div class="post-info">
-            <span class="name">${data.name}</span>
-            <span class="time">${date}</span> 
-            <span class="post-id" onclick="quotePost('${id}', '${threadId}')">No. ${id.substring(1,8)}</span>
-            ${ipHtml} ${delBtn}
-        </div>
-        ${renderMedia(data.image)}
-        <blockquote class="comment">${formatComment(data.comment)}</blockquote>
-        <div class="backlink-container" id="backlinks_${id}"></div>
-    </div>`;
-}
-
-// ==========================================
-// 7. SUBMIT LOGIC (With Cooldown & "You" ID Saving)
-// ==========================================
-
-function validateMediaUrl(url) {
-    return new Promise((resolve) => {
-        if (!url) return resolve(true);
-        if (getMediaType(url).type !== 'image') return resolve(true);
-        const img = new Image();
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-        img.src = url;
-        setTimeout(() => resolve(false), 5000);
-    });
-}
-
-document.getElementById('postForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const comment = document.getElementById('commentInput').value;
-    const image = document.getElementById('imageInput').value.trim();
-    const btn = document.getElementById('submitBtn');
-
-    // --- 1. SPAM COOLDOWN ---
-    const now = Date.now(); 
-    const lastPostTime = localStorage.getItem('last_post_time');
-    const COOLDOWN_SECONDS = 15; 
-
-    if (lastPostTime) {
-        const diff = (now - parseInt(lastPostTime)) / 1000;
-        if (diff < COOLDOWN_SECONDS) {
-            const remaining = Math.ceil(COOLDOWN_SECONDS - diff);
-            alert(`Please wait ${remaining} seconds before posting again.`);
-            return;
-        }
-    }
-
-    if (!comment) return alert("Comment required");
-
-    btn.disabled = true; 
-    btn.innerText = "Processing...";
-
-    // --- 2. MEDIA VALIDATION ---
-    if (!(await validateMediaUrl(image))) { 
-        alert("Invalid URL"); 
-        btn.disabled = false; 
-        btn.innerText = "Submit Post"; 
-        return; 
-    }
-
-    let userIP = "Unknown";
-    try { 
-        const resp = await fetch('https://api.ipify.org?format=json'); 
-        const data = await resp.json(); 
-        userIP = data.ip; 
-    } catch (err) {}
-
-    // --- 3. PREPARE DATA ---
-    const postData = { 
-        name: document.getElementById('nameInput').value || "Anonymous", 
-        comment, 
-        image, 
-        timestamp: now, 
-        ip: userIP 
-    };
-
-    // --- 4. SAVE TO FIREBASE & LOCAL STORAGE ---
     try {
-        // Load existing history of "(You)" posts
-        const MY_POSTS = JSON.parse(localStorage.getItem('my_posts') || "[]");
+        await apiFetch('/admin/delete', {
+            method: 'POST',
+            body: { type, id }
+        });
+        if (type === 'thread' && currentThreadId === id) {
+            window.location.hash = "";
+        } else {
+            router();
+        }
+    } catch (err) {
+        alert("Failed to delete: " + err.message);
+    }
+}
+
+async function togglePin(threadId) {
+    try {
+        await apiFetch('/admin/pin', {
+            method: 'POST',
+            body: { thread_id: threadId }
+        });
+        router();
+    } catch (err) {
+        alert("Failed to pin: " + err.message);
+    }
+}
+
+async function toggleLock(threadId) {
+    try {
+        await apiFetch('/admin/lock', {
+            method: 'POST',
+            body: { thread_id: threadId }
+        });
+        router();
+    } catch (err) {
+        alert("Failed to lock: " + err.message);
+    }
+}
+
+// --- AUTH & USER MANAGEMENT ---
+async function initAuth() {
+    if (!authToken) {
+        updateAuthUI(null);
+        return;
+    }
+
+    try {
+        const data = await apiFetch('/auth/me');
+        currentUser = data.user;
+        updateAuthUI(currentUser);
+    } catch {
+        localStorage.removeItem('myvt_token');
+        authToken = null;
+        currentUser = null;
+        updateAuthUI(null);
+    }
+}
+
+function updateAuthUI(user) {
+    const authStatusEl = document.getElementById('authStatus');
+    if (!authStatusEl) return;
+
+    if (user) {
+        const badge = user.display_title ? ` (${user.display_title})` : ` [${user.role}]`;
+        authStatusEl.innerHTML = `
+            [ <b>@${escapeHtml(user.username)}</b>${badge} ]
+            [ <a href="javascript:void(0)" onclick="logout()">Logout</a> ]
+        `;
+    } else {
+        authStatusEl.innerHTML = `
+            [ <a href="javascript:void(0)" onclick="openAuthModal('login')">Login</a> ]
+            [ <a href="javascript:void(0)" onclick="openAuthModal('register')">Register</a> ]
+        `;
+    }
+}
+
+function openAuthModal(mode = 'login') {
+    const modal = document.getElementById('authModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    setAuthMode(mode);
+}
+
+function closeAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function setAuthMode(mode) {
+    const title = document.getElementById('authModalTitle');
+    const submitBtn = document.getElementById('authSubmitBtn');
+    const toggleText = document.getElementById('authToggleText');
+    const form = document.getElementById('authForm');
+    if (!form) return;
+
+    form.dataset.mode = mode;
+    if (mode === 'login') {
+        title.innerText = "Member / Staff Login";
+        submitBtn.innerText = "Login";
+        toggleText.innerHTML = `Don't have an account? <a href="javascript:void(0)" onclick="setAuthMode('register')">Register here</a>`;
+    } else {
+        title.innerText = "Register New Account";
+        submitBtn.innerText = "Register";
+        toggleText.innerHTML = `Already have an account? <a href="javascript:void(0)" onclick="setAuthMode('login')">Login here</a>`;
+    }
+}
+
+async function handleAuthSubmit(e) {
+    e.preventDefault();
+    const form = document.getElementById('authForm');
+    const mode = form.dataset.mode || 'login';
+    const username = document.getElementById('authUsername').value.trim();
+    const password = document.getElementById('authPassword').value;
+    const msg = document.getElementById('authMessage');
+
+    msg.innerText = "";
+    try {
+        const endpoint = mode === 'login' ? '/auth/login' : '/auth/register';
+        const res = await apiFetch(endpoint, {
+            method: 'POST',
+            body: { username, password }
+        });
+
+        if (res.success && res.token) {
+            authToken = res.token;
+            localStorage.setItem('myvt_token', authToken);
+            currentUser = res.user;
+            updateAuthUI(currentUser);
+            closeAuthModal();
+            router();
+        }
+    } catch (err) {
+        msg.innerText = err.message;
+    }
+}
+
+async function logout() {
+    try {
+        await apiFetch('/auth/logout', { method: 'POST' });
+    } catch {}
+    localStorage.removeItem('myvt_token');
+    authToken = null;
+    currentUser = null;
+    updateAuthUI(null);
+    router();
+}
+
+// --- 4CHAN-STYLE AUTO-POLLING ---
+function startAutoUpdate() {
+    if (autoUpdateTimer) clearInterval(autoUpdateTimer);
+    autoUpdateTimer = setInterval(() => {
+        if (!isAutoUpdateEnabled) return;
+        if (document.hidden) return; // Don't poll if browser tab is in background
+
+        // Detect if archive view
+        const isArch = new URLSearchParams(window.location.search).get('view') === 'archive';
 
         if (currentThreadId) {
-            // CASE A: REPLYING
-            // Push to Firebase and Capture the Reference (newRef)
-            const newRef = await database.ref('boards/' + currentBoard + '/threads/' + currentThreadId + '/replies').push(postData);
-            
-            // Save the new ID to our local history
-            MY_POSTS.push(newRef.key);
-            
-            // Update Bump Time
-            await database.ref('boards/' + currentBoard + '/threads/' + currentThreadId).update({ lastUpdated: now });
-        } else {
-            // CASE B: NEW THREAD
-            postData.subject = document.getElementById('subjectInput').value;
-            postData.lastUpdated = now;
-            
-            // Push to Firebase and Capture Ref
-            const newRef = await getBoardRef().push(postData);
-            
-            // Save the new ID
-            MY_POSTS.push(newRef.key);
+            loadThreadView(currentThreadId, true); // true = silent background update
+        } else if (currentBoard) {
+            loadBoardView(isArch, true); // true = silent background update
         }
+    }, 15000); // 15 seconds
+}
 
-        // Commit the updated list to LocalStorage
-        localStorage.setItem('my_posts', JSON.stringify(MY_POSTS));
-        
-        // Save Cooldown Timestamp
-        localStorage.setItem('last_post_time', now);
-
-        // Reset Form
-        document.getElementById('commentInput').value = "";
-        document.getElementById('imageInput').value = "";
-        document.getElementById('subjectInput').value = "";
-        
-    } catch(e) { 
-        alert("Error: " + e.message); 
-    } finally { 
-        btn.disabled = false; 
-        btn.innerText = "Submit Post"; 
-        
-        // Reload board if we are on the index
-        if (!currentThreadId) setTimeout(() => loadBoardView(), 500); 
+function toggleAutoUpdate() {
+    isAutoUpdateEnabled = !isAutoUpdateEnabled;
+    const btn = document.getElementById('autoUpdateToggle');
+    if (btn) {
+        btn.innerText = isAutoUpdateEnabled ? "Auto-Update: On (15s)" : "Auto-Update: Off";
+        btn.style.color = isAutoUpdateEnabled ? "var(--main-accent)" : "#888";
     }
-});
+}

@@ -1,0 +1,8 @@
+{
+  "name": "MYVT - Malaysian VTuber Board",
+  "description": "The premier imageboard for the Malaysian Virtual YouTuber community and adjacent Otaku culture.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
