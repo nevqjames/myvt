@@ -47,13 +47,14 @@ function getMediaType(url) {
         return { type: 'reddit_video', id: redditVideoMatch[1], url: cleanUrl };
     }
 
-    // 5. Reddit Post Detection (reddit.com/r/sub/comments/id/..., /comments/id, or redd.it/id)
-    const redditPostRegex = /(?:https?:\/\/)?(?:(?:www\.|old\.|new\.)?reddit\.com\/(?:r\/([a-zA-Z0-9_]+)\/comments\/([a-z0-9]+)|comments\/([a-z0-9]+))|(?<![a-zA-Z0-9])redd\.it\/([a-z0-9]+))/i;
+    // 5. Reddit Post & Share Link Detection (handles /r/sub/comments/id, /r/sub/s/shareId, /comments/id, redd.it/id)
+    const redditPostRegex = /(?:https?:\/\/)?(?:(?:www\.|old\.|new\.|m\.|sh\.)?reddit\.com\/(?:r\/([a-zA-Z0-9_]+)\/(?:comments\/([a-z0-9]+)|s\/([a-zA-Z0-9_-]+))|(?:comments\/([a-z0-9]+)|s\/([a-zA-Z0-9_-]+)))|(?<![a-zA-Z0-9])redd\.it\/([a-z0-9]+))/i;
     const redditPostMatch = cleanUrl.match(redditPostRegex);
     if (redditPostMatch) {
         const subreddit = redditPostMatch[1] || 'reddit';
-        const id = redditPostMatch[2] || redditPostMatch[3] || redditPostMatch[4];
-        return { type: 'reddit', subreddit, id, url: cleanUrl };
+        const id = redditPostMatch[2] || redditPostMatch[3] || redditPostMatch[4] || redditPostMatch[5] || redditPostMatch[6];
+        const isShare = !!(redditPostMatch[3] || redditPostMatch[5]);
+        return { type: 'reddit', subreddit, id, isShare, url: cleanUrl };
     }
 
     // 4. Direct HTML5 Video Detection
@@ -101,15 +102,16 @@ function renderMedia(url) {
 
     // 3. Reddit Post Card
     if (media.type === 'reddit') {
+        const isShareParam = media.isShare ? 'true' : 'false';
         return `
-            <div class="media-container file-placeholder reddit-placeholder" onclick="openLightbox('reddit', '${escapeHtml(media.url)}', '${escapeHtml(media.subreddit)}', '${escapeHtml(media.id)}')" title="Click to view Reddit post on r/${escapeHtml(media.subreddit)}">
+            <div class="media-container file-placeholder reddit-placeholder" onclick="openLightbox('reddit', '${escapeHtml(media.url)}', '${escapeHtml(media.subreddit)}', '${escapeHtml(media.id)}', ${isShareParam})" title="Click to view Reddit post on r/${escapeHtml(media.subreddit)}">
                 <div class="file-ext" style="color:#FF4500; display:flex; align-items:center; justify-content:center;">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="#FF4500">
                         <path d="M12 0C5.373 0 0 5.373 0 12c0 3.314 1.343 6.314 3.515 8.485l-1.03 3.09a.75.75 0 00.95.95l3.09-1.03C8.686 22.657 11.686 24 15 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm5.01 13.5c0 .825-.675 1.5-1.5 1.5-.412 0-.788-.168-1.06-.44-.825.562-1.95.915-3.2.94l.544-2.548 1.77.375c.026.685.586 1.233 1.286 1.233.714 0 1.29-.576 1.29-1.29 0-.714-.576-1.29-1.29-1.29-.488 0-.915.27-1.14.667l-2.01-.426a.375.375 0 00-.442.29l-.66 3.09c-1.32-.025-2.512-.39-3.375-.97a1.49 1.49 0 01-.983.37c-.825 0-1.5-.675-1.5-1.5 0-.585.34-1.09.83-1.332-.045-.22-.07-.446-.07-.668 0-2.348 2.73-4.25 6.1-4.25s6.1 1.902 6.1 4.25c0 .222-.025.448-.07.668.49.242.83.747.83 1.332z"/>
                     </svg>
                 </div>
                 <div style="font-size:11px; color:#fff; font-weight:bold; margin-top:4px;">r/${escapeHtml(media.subreddit)}</div>
-                <div style="font-size:10px; color:#bbb; margin-top:2px;">View Post &amp; Media</div>
+                <div style="font-size:10px; color:#bbb; margin-top:2px;">${media.isShare ? 'View Shared Post' : 'View Post &amp; Media'}</div>
             </div>
         `;
     }
@@ -199,10 +201,12 @@ function openLightbox(type, content, extra1, extra2) {
     const img = document.getElementById('lbImg');
     const vid = document.getElementById('lbVideo');
     const frame = document.getElementById('lbFrame');
+    const custom = document.getElementById('lbCustom');
 
     // Reset all display states and media sources
     if (img) { img.style.display = 'none'; img.src = ""; }
     if (vid) { vid.style.display = 'none'; vid.pause(); vid.src = ""; }
+    if (custom) { custom.style.display = 'none'; custom.innerHTML = ""; }
     if (frame) { 
         frame.style.display = 'none'; 
         frame.src = ""; 
@@ -233,15 +237,35 @@ function openLightbox(type, content, extra1, extra2) {
         frame.style.width = "550px";
         frame.style.height = "520px";
     }
-    else if (type === 'reddit' && frame) {
+    else if (type === 'reddit') {
         const subreddit = extra1 || 'reddit';
         const postId = extra2 || '';
-        // Official Reddit Embed Frame (supports frame-ancestors: *)
-        const embedUrl = `https://embed.reddit.com/r/${encodeURIComponent(subreddit)}/comments/${encodeURIComponent(postId)}/?embed=true&theme=${theme}`;
-        frame.src = embedUrl;
-        frame.style.display = 'block';
-        frame.style.width = "650px";
-        frame.style.height = "540px";
+        const isShare = !!extra3;
+
+        if (isShare && custom) {
+            custom.innerHTML = `
+                <div style="background:#1a1a1b; color:#fff; border-radius:12px; padding:28px 24px; text-align:center; max-width:440px; border:2px solid #FF4500; box-shadow:0 8px 30px rgba(0,0,0,0.8);">
+                    <div style="display:inline-flex; align-items:center; justify-content:center; width:56px; height:56px; border-radius:50%; background:rgba(255,69,0,0.15); margin-bottom:14px;">
+                        <svg width="34" height="34" viewBox="0 0 24 24" fill="#FF4500">
+                            <path d="M12 0C5.373 0 0 5.373 0 12c0 3.314 1.343 6.314 3.515 8.485l-1.03 3.09a.75.75 0 00.95.95l3.09-1.03C8.686 22.657 11.686 24 15 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm5.01 13.5c0 .825-.675 1.5-1.5 1.5-.412 0-.788-.168-1.06-.44-.825.562-1.95.915-3.2.94l.544-2.548 1.77.375c.026.685.586 1.233 1.286 1.233.714 0 1.29-.576 1.29-1.29 0-.714-.576-1.29-1.29-1.29-.488 0-.915.27-1.14.667l-2.01-.426a.375.375 0 00-.442.29l-.66 3.09c-1.32-.025-2.512-.39-3.375-.97a1.49 1.49 0 01-.983.37c-.825 0-1.5-.675-1.5-1.5 0-.585.34-1.09.83-1.332-.045-.22-.07-.446-.07-.668 0-2.348 2.73-4.25 6.1-4.25s6.1 1.902 6.1 4.25c0 .222-.025.448-.07.668.49.242.83.747.83 1.332z"/>
+                        </svg>
+                    </div>
+                    <div style="font-size:1.15em; font-weight:bold; color:#fff; margin-bottom:6px;">Reddit Video &amp; Post</div>
+                    <div style="font-size:0.9em; color:#bbb; margin-bottom:18px;">From <b>r/${escapeHtml(subreddit)}</b> (Shared via Reddit Mobile)</div>
+                    <a href="${escapeHtml(content)}" target="_blank" rel="noopener noreferrer" style="display:inline-block; background:#FF4500; color:#fff; font-weight:bold; font-size:1em; padding:10px 22px; border-radius:8px; text-decoration:none; transition:background 0.15s ease;" onmouseover="this.style.background='#ff5722'" onmouseout="this.style.background='#FF4500'">
+                        Watch / View on Reddit ↗
+                    </a>
+                    <div style="font-size:0.75em; color:#888; margin-top:14px;">Opens directly in your Reddit app or browser</div>
+                </div>
+            `;
+            custom.style.display = 'block';
+        } else if (frame) {
+            const embedUrl = `https://embed.reddit.com/r/${encodeURIComponent(subreddit)}/comments/${encodeURIComponent(postId)}/?embed=true&theme=${theme}`;
+            frame.src = embedUrl;
+            frame.style.display = 'block';
+            frame.style.width = "650px";
+            frame.style.height = "540px";
+        }
     }
     else if (type === 'reddit_video' && frame) {
         frame.src = `https://embed.reddit.com/video/${encodeURIComponent(content)}/?embed=true&theme=${theme}`;
@@ -273,6 +297,12 @@ function closeLightbox(e) {
         const img = document.getElementById('lbImg');
         if (img) {
             img.src = "";
+        }
+
+        const custom = document.getElementById('lbCustom');
+        if (custom) {
+            custom.style.display = 'none';
+            custom.innerHTML = "";
         }
     }
 }
@@ -314,7 +344,8 @@ function initMediaInputDetector() {
             badge.style.background = 'rgba(255, 69, 0, 0.15)';
             badge.style.color = '#ff6a33';
             badge.style.border = '1px solid #FF4500';
-            badge.innerHTML = `✓ Reddit Post Detected: <b>r/${escapeHtml(media.subreddit)}</b> (Embed &amp; Media Card)`;
+            const label = media.isShare ? 'Mobile Share Link' : 'Post / Video Link';
+            badge.innerHTML = `✓ Reddit ${label} Detected: <b>r/${escapeHtml(media.subreddit)}</b> (Media Card Attached)`;
         } else if (media.type === 'reddit_video') {
             badge.style.background = 'rgba(255, 69, 0, 0.15)';
             badge.style.color = '#ff6a33';
