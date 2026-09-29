@@ -105,13 +105,13 @@ function renderMedia(url) {
         const isShareParam = media.isShare ? 'true' : 'false';
         return `
             <div class="media-container file-placeholder reddit-placeholder" onclick="openLightbox('reddit', '${escapeHtml(media.url)}', '${escapeHtml(media.subreddit)}', '${escapeHtml(media.id)}', ${isShareParam})" title="Click to view Reddit post on r/${escapeHtml(media.subreddit)}">
-                <div class="file-ext" style="color:#FF4500; display:flex; align-items:center; justify-content:center;">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="#FF4500">
+                <div style="display:flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:50%; background:rgba(255, 69, 0, 0.15); margin-bottom:8px;">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="#FF4500">
                         <path d="M12 0C5.373 0 0 5.373 0 12c0 3.314 1.343 6.314 3.515 8.485l-1.03 3.09a.75.75 0 00.95.95l3.09-1.03C8.686 22.657 11.686 24 15 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm5.01 13.5c0 .825-.675 1.5-1.5 1.5-.412 0-.788-.168-1.06-.44-.825.562-1.95.915-3.2.94l.544-2.548 1.77.375c.026.685.586 1.233 1.286 1.233.714 0 1.29-.576 1.29-1.29 0-.714-.576-1.29-1.29-1.29-.488 0-.915.27-1.14.667l-2.01-.426a.375.375 0 00-.442.29l-.66 3.09c-1.32-.025-2.512-.39-3.375-.97a1.49 1.49 0 01-.983.37c-.825 0-1.5-.675-1.5-1.5 0-.585.34-1.09.83-1.332-.045-.22-.07-.446-.07-.668 0-2.348 2.73-4.25 6.1-4.25s6.1 1.902 6.1 4.25c0 .222-.025.448-.07.668.49.242.83.747.83 1.332z"/>
                     </svg>
                 </div>
-                <div style="font-size:11px; color:#fff; font-weight:bold; margin-top:4px;">r/${escapeHtml(media.subreddit)}</div>
-                <div style="font-size:10px; color:#bbb; margin-top:2px;">${media.isShare ? 'View Shared Post' : 'View Post &amp; Media'}</div>
+                <div style="font-size:12px; font-weight:bold; color:#fff; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.2;">r/${escapeHtml(media.subreddit)}</div>
+                <div style="font-size:10px; color:#ff8c5a; margin-top:4px; font-weight:600; line-height:1.2;">${media.isShare ? 'Reddit Video / Post' : 'View Post &amp; Media'}</div>
             </div>
         `;
     }
@@ -194,7 +194,7 @@ function validateMediaUrl(url) {
 }
 
 // --- CENTRALIZED LIGHTBOX CONTROLLER ---
-function openLightbox(type, content, extra1, extra2) {
+function openLightbox(type, content, extra1, extra2, extra3) {
     const lb = document.getElementById('lightbox');
     if (!lb) return;
 
@@ -203,13 +203,24 @@ function openLightbox(type, content, extra1, extra2) {
     const frame = document.getElementById('lbFrame');
     const custom = document.getElementById('lbCustom');
 
-    // Reset all display states and media sources
-    if (img) { img.style.display = 'none'; img.src = ""; }
-    if (vid) { vid.style.display = 'none'; vid.pause(); vid.src = ""; }
-    if (custom) { custom.style.display = 'none'; custom.innerHTML = ""; }
+    // Reset all display states and media sources cleanly
+    if (img) { 
+        img.style.display = 'none'; 
+        img.removeAttribute('src'); 
+    }
+    if (vid) { 
+        vid.style.display = 'none'; 
+        vid.pause(); 
+        vid.removeAttribute('src'); 
+        vid.load();
+    }
+    if (custom) { 
+        custom.style.display = 'none'; 
+        custom.innerHTML = ""; 
+    }
     if (frame) { 
         frame.style.display = 'none'; 
-        frame.src = ""; 
+        frame.removeAttribute('src'); 
         frame.style.width = "800px"; 
         frame.style.height = "450px"; 
     }
@@ -240,7 +251,7 @@ function openLightbox(type, content, extra1, extra2) {
     else if (type === 'reddit') {
         const subreddit = extra1 || 'reddit';
         const postId = extra2 || '';
-        const isShare = !!extra3;
+        const isShare = typeof extra3 !== 'undefined' && Boolean(extra3);
 
         if (isShare && custom) {
             custom.innerHTML = `
@@ -286,17 +297,18 @@ function closeLightbox(e) {
         const vid = document.getElementById('lbVideo');
         if (vid) {
             vid.pause();
-            vid.src = "";
+            vid.removeAttribute('src');
+            vid.load();
         }
 
         const frame = document.getElementById('lbFrame');
         if (frame) {
-            frame.src = "";
+            frame.removeAttribute('src');
         }
 
         const img = document.getElementById('lbImg');
         if (img) {
-            img.src = "";
+            img.removeAttribute('src');
         }
 
         const custom = document.getElementById('lbCustom');

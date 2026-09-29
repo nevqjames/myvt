@@ -289,10 +289,23 @@ body.night-mode .media-help-drawer .media-help-content code {
 }
 
 .file-placeholder {
-    width: 180px; height: 130px;
-    background: #000; color: #fff;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
+    width: 180px;
+    height: 130px;
+    background: #000;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.35 !important;
+    text-align: center;
+    padding: 10px 8px;
+    box-sizing: border-box;
+    cursor: pointer;
+    user-select: none;
+}
+.file-placeholder * {
+    line-height: 1.3;
 }
 .file-ext { font-weight: bold; font-size: 24px; color: #ffcc00; }
 .x-placeholder {
