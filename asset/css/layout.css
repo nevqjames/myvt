@@ -224,25 +224,47 @@ body.night-mode .media-help-drawer .media-help-content code {
 .reply-count-num { color: var(--main-accent); }
 
 /* --- MEDIA HANDLING --- */
-.thread-image, .media-container {
+.thread-image {
     float: left;
     margin: 0 15px 10px 0;
     position: relative;
     cursor: pointer;
-    border: 3px solid var(--header-color);
-    border-radius: 10px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
     overflow: hidden;
     line-height: 0;
-    display: inline-block;
-}
-
-/* Force 200px Limit */
-.thread-image, .media-container img {
     display: block;
     max-width: 200px !important;
     max-height: 200px !important;
     width: auto;
     height: auto;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Video & Embed Containers: Completely borderless, clean rounded corners */
+.media-container {
+    float: left;
+    margin: 0 15px 10px 0;
+    position: relative;
+    cursor: pointer;
+    border: none !important;
+    border-radius: 8px;
+    overflow: hidden;
+    line-height: 0;
+    display: inline-block;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.media-container img,
+.media-container video {
+    display: block;
+    max-width: 200px !important;
+    max-height: 200px !important;
+    width: auto;
+    height: auto;
+    border: none !important;
+    border-radius: 8px;
+    object-fit: cover;
 }
 
 .play-overlay {

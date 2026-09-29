@@ -25,14 +25,14 @@ function renderMedia(url) {
     const media = getMediaType(url);
 
     if (media.type === 'youtube') {
-        const thumbUrl = `https://img.youtube.com/vi/${media.id}/0.jpg`;
-        return `<div class="media-container" onclick="openLightbox('youtube', '${media.id}')"><img src="${thumbUrl}"><div class="play-overlay">▶</div></div>`;
+        const thumbUrl = `https://img.youtube.com/vi/${media.id}/mqdefault.jpg`;
+        return `<div class="media-container" onclick="openLightbox('youtube', '${media.id}')"><img src="${thumbUrl}" alt="YouTube Thumbnail"><div class="play-overlay">▶</div></div>`;
     } 
     else if (media.type === 'x') {
         return `<div class="media-container file-placeholder x-placeholder" onclick="openLightbox('x', '${media.id}')"><div class="file-ext" style="color:#1DA1F2">𝕏</div><div style="font-size:10px; color:#fff">View Post</div></div>`;
     } 
     else if (media.type === 'video') {
-        return `<div class="media-container" onclick="openLightbox('video', '${media.url}')" style="cursor:pointer;"><video src="${media.url}#t=0.001" preload="metadata" muted playsinline class="thread-image" style="max-width:200px; max-height:200px; object-fit:cover; display:block; pointer-events:none;"></video><div class="play-overlay">▶</div></div>`;
+        return `<div class="media-container" onclick="openLightbox('video', '${media.url}')" style="cursor:pointer;"><video src="${media.url}#t=0.001" preload="metadata" muted playsinline style="max-width:200px; max-height:200px; object-fit:cover; display:block; pointer-events:none; border:none;"></video><div class="play-overlay">▶</div></div>`;
     } 
     else {
         return `<img src="${url}" class="thread-image" onclick="openLightbox('image', '${url}')">`;
