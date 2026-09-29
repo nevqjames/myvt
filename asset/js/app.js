@@ -32,6 +32,7 @@ function acceptNSFW() {
 window.addEventListener('hashchange', router);
 window.addEventListener('load', () => {
     initAuth();
+    loadSiteSettings();
     router();
     startAutoUpdate();
 });
@@ -126,7 +127,10 @@ function renderBoardNav() {
 }
 
 // --- PORTAL STATS ON HOME VIEW ---
+const DEFAULT_BANNER = "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&h=300&q=80";
+
 async function loadPortalStats() {
+    loadSiteSettings();
     try {
         const data = await apiFetch('/boards');
         if (data.success && data.boards) {
@@ -139,6 +143,94 @@ async function loadPortalStats() {
         }
     } catch (err) {
         console.warn('Could not load board stats:', err);
+    }
+}
+
+async function loadSiteSettings() {
+    try {
+        const data = await apiFetch('/settings');
+        const img = document.getElementById('homeBannerImg');
+        const input = document.getElementById('bannerUrlInput');
+        if (data.success && data.settings && data.settings.banner_url) {
+            if (img) img.src = data.settings.banner_url;
+            if (input) input.value = data.settings.banner_url;
+        } else {
+            if (img && !img.src) img.src = DEFAULT_BANNER;
+            if (input) input.value = DEFAULT_BANNER;
+        }
+    } catch (e) {
+        console.warn('Could not load site settings:', e);
+    }
+}
+
+function toggleBannerEditor() {
+    const box = document.getElementById('bannerEditorBox');
+    if (!box) return;
+    const isShowing = box.style.display === 'block';
+    box.style.display = isShowing ? 'none' : 'block';
+    const statusMsg = document.getElementById('bannerStatusMsg');
+    if (statusMsg) statusMsg.innerText = '';
+}
+
+async function saveBannerUrl() {
+    const input = document.getElementById('bannerUrlInput');
+    const statusMsg = document.getElementById('bannerStatusMsg');
+    const val = input ? input.value.trim() : '';
+    if (!val) {
+        if (statusMsg) {
+            statusMsg.style.color = '#ef4444';
+            statusMsg.innerText = 'Please enter an image URL.';
+        }
+        return;
+    }
+
+    try {
+        const res = await apiFetch('/admin/settings', {
+            method: 'POST',
+            body: { key: 'banner_url', value: val }
+        });
+        if (res.success) {
+            const img = document.getElementById('homeBannerImg');
+            if (img) img.src = val;
+            if (statusMsg) {
+                statusMsg.style.color = '#2e7d32';
+                statusMsg.innerText = 'Banner updated!';
+            }
+            setTimeout(() => {
+                toggleBannerEditor();
+            }, 1000);
+        }
+    } catch (err) {
+        if (statusMsg) {
+            statusMsg.style.color = '#ef4444';
+            statusMsg.innerText = err.message;
+        }
+    }
+}
+
+async function resetBannerUrl() {
+    const input = document.getElementById('bannerUrlInput');
+    const statusMsg = document.getElementById('bannerStatusMsg');
+    if (input) input.value = DEFAULT_BANNER;
+    try {
+        await apiFetch('/admin/settings', {
+            method: 'POST',
+            body: { key: 'banner_url', value: DEFAULT_BANNER }
+        });
+        const img = document.getElementById('homeBannerImg');
+        if (img) img.src = DEFAULT_BANNER;
+        if (statusMsg) {
+            statusMsg.style.color = '#2e7d32';
+            statusMsg.innerText = 'Reset to default banner.';
+        }
+        setTimeout(() => {
+            toggleBannerEditor();
+        }, 1000);
+    } catch (err) {
+        if (statusMsg) {
+            statusMsg.style.color = '#ef4444';
+            statusMsg.innerText = err.message;
+        }
     }
 }
 
@@ -576,19 +668,24 @@ async function initAuth() {
 
 function updateAuthUI(user) {
     const authStatusEl = document.getElementById('authStatus');
-    if (!authStatusEl) return;
+    if (authStatusEl) {
+        if (user) {
+            const badge = user.display_title ? ` (${user.display_title})` : ` [${user.role}]`;
+            authStatusEl.innerHTML = `
+                [ <b>@${escapeHtml(user.username)}</b>${badge} ]
+                [ <a href="javascript:void(0)" onclick="logout()">Logout</a> ]
+            `;
+        } else {
+            authStatusEl.innerHTML = `
+                [ <a href="javascript:void(0)" onclick="openAuthModal('login')">Login</a> ]
+                [ <a href="javascript:void(0)" onclick="openAuthModal('register')">Register</a> ]
+            `;
+        }
+    }
 
-    if (user) {
-        const badge = user.display_title ? ` (${user.display_title})` : ` [${user.role}]`;
-        authStatusEl.innerHTML = `
-            [ <b>@${escapeHtml(user.username)}</b>${badge} ]
-            [ <a href="javascript:void(0)" onclick="logout()">Logout</a> ]
-        `;
-    } else {
-        authStatusEl.innerHTML = `
-            [ <a href="javascript:void(0)" onclick="openAuthModal('login')">Login</a> ]
-            [ <a href="javascript:void(0)" onclick="openAuthModal('register')">Register</a> ]
-        `;
+    const bannerAdmin = document.getElementById('bannerAdminControl');
+    if (bannerAdmin) {
+        bannerAdmin.style.display = (user && user.role === 'admin') ? 'block' : 'none';
     }
 }
 

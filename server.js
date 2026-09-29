@@ -495,6 +495,35 @@ app.post('/api/admin/update-role', (req, res) => {
     }
 });
 
+// 14. Site Settings (e.g. Banner Image)
+app.get('/api/settings', (req, res) => {
+    try {
+        const rows = db.prepare('SELECT key, value FROM site_settings').all();
+        const settings = {};
+        for (const r of rows) settings[r.key] = r.value;
+        res.json({ success: true, settings });
+    } catch (err) {
+        res.json({ success: true, settings: {} });
+    }
+});
+
+app.post('/api/admin/settings', (req, res) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+    }
+
+    const { key, value } = req.body;
+    if (!key) return res.status(400).json({ error: 'Missing setting key' });
+
+    try {
+        db.prepare('INSERT INTO site_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?')
+          .run(key, value || '', value || '');
+        res.json({ success: true, key, value });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- STATIC ASSETS & SPA ROUTING ---
 app.use(express.static(__dirname));
 

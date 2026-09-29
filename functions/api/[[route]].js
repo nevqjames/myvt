@@ -357,6 +357,24 @@ export async function onRequest(context) {
                 await db.prepare('UPDATE threads SET is_locked = ? WHERE id = ?').bind(newLocked, body.thread_id).run();
                 return json({ success: true, is_locked: newLocked });
             }
+            if (sub === 'settings' && user?.role === 'admin') {
+                const { key, value } = body;
+                if (!key) return json({ error: 'Missing key' }, 400);
+                await db.prepare('INSERT OR REPLACE INTO site_settings (key, value) VALUES (?, ?)').bind(key, value || '').run();
+                return json({ success: true, key, value });
+            }
+        }
+
+        // 10. Site Settings (e.g. Banner Image)
+        if (route === 'settings' && method === 'GET') {
+            try {
+                const rows = (await db.prepare('SELECT key, value FROM site_settings').all()).results || [];
+                const settings = {};
+                for (const r of rows) settings[r.key] = r.value;
+                return json({ success: true, settings });
+            } catch {
+                return json({ success: true, settings: {} });
+            }
         }
 
         return json({ error: 'Not Found' }, 404);
