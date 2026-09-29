@@ -87,10 +87,12 @@ function router() {
         if (threadView) threadView.style.display = "block";
         if (formWrapper) formWrapper.style.display = "block";
         currentThreadId = hash.replace("#thread_", "");
+        lastThreadSignature = "";
         loadThreadView(currentThreadId);
     } else {
         // Board Mode
         currentThreadId = null;
+        lastBoardSignature = "";
         if (threadView) threadView.style.display = "none";
         if (boardView) boardView.style.display = "block";
         if (formWrapper) formWrapper.style.display = isArchiveView ? "none" : "block"; 
@@ -235,6 +237,8 @@ async function resetBannerUrl() {
 }
 
 // --- LOAD BOARD VIEW ---
+let lastBoardSignature = "";
+
 async function loadBoardView(isArchive = false, isSilent = false) {
     const container = document.getElementById('threadList');
     if (!container) return;
@@ -262,7 +266,41 @@ async function loadBoardView(isArchive = false, isSilent = false) {
             if (!isSilent) {
                 container.innerHTML = `<div style="text-align:center; padding: 40px; color: var(--text-color);">No ${isArchive ? 'archived ' : ''}threads found on /${currentBoard}/.</div>`;
             }
+            lastBoardSignature = "";
             return;
+        }
+
+        // Generate data signature to detect if anything on the board actually changed
+        const currentSignature = JSON.stringify(threads.map(t => [
+            t.id, 
+            t.reply_count, 
+            t.bumped_at, 
+            t.is_pinned, 
+            t.is_locked,
+            (t.preview_replies || []).map(r => r.id)
+        ]));
+
+        // If silent auto-update and no changes occurred: DO NOT TOUCH THE DOM!
+        // This completely prevents unnecessary layout shifts, image reloads, or scroll drifts.
+        if (isSilent && lastBoardSignature === currentSignature) {
+            return;
+        }
+        lastBoardSignature = currentSignature;
+
+        // Viewport Anchor Preservation:
+        // Find which thread card is currently visible in the user's viewport so we lock directly onto it
+        let anchorId = null;
+        let anchorTop = 0;
+        if (isSilent) {
+            const currentThreads = Array.from(container.querySelectorAll('.thread'));
+            for (const thEl of currentThreads) {
+                const rect = thEl.getBoundingClientRect();
+                if (rect.bottom > 0 && rect.top < window.innerHeight) {
+                    anchorId = thEl.id;
+                    anchorTop = rect.top;
+                    break;
+                }
+            }
         }
 
         let html = "";
@@ -270,13 +308,24 @@ async function loadBoardView(isArchive = false, isSilent = false) {
             html += renderThreadPreview(th);
         }
 
-        // Preserve scroll position during silent auto-updates
-        const prevScroll = window.scrollY;
         container.innerHTML = html;
-        if (isSilent) {
-            window.scrollTo(0, prevScroll);
-        }
         generateBacklinks();
+
+        // Re-align viewport to the exact thread the user was reading
+        if (isSilent && anchorId) {
+            const restoreAnchor = () => {
+                const newAnchor = document.getElementById(anchorId);
+                if (newAnchor) {
+                    const diff = newAnchor.getBoundingClientRect().top - anchorTop;
+                    if (Math.abs(diff) > 0.5) {
+                        window.scrollBy({ top: diff, behavior: 'instant' });
+                    }
+                }
+            };
+            restoreAnchor();
+            // Safety re-check after images/fonts lay out
+            requestAnimationFrame(restoreAnchor);
+        }
     } catch (err) {
         if (!isSilent) {
             container.innerHTML = `<div style="color:red; text-align:center; padding: 20px;">Failed to load board: ${err.message}</div>`;
@@ -364,6 +413,8 @@ function renderThreadPreview(th) {
 }
 
 // --- LOAD SINGLE THREAD VIEW ---
+let lastThreadSignature = "";
+
 async function loadThreadView(threadId, isSilent = false) {
     const opContainer = document.getElementById('opContainer');
     const repliesContainer = document.getElementById('repliesContainer');
@@ -391,10 +442,35 @@ async function loadThreadView(threadId, isSilent = false) {
         const th = data.thread;
         const replies = data.replies || [];
 
+        // Check if anything in the thread actually changed
+        const lastReplyId = replies.length > 0 ? replies[replies.length - 1].id : 'none';
+        const currentSignature = `${th.id}_${th.is_locked}_${th.is_pinned}_${replies.length}_${lastReplyId}`;
+
+        // If silent auto-update and nothing changed: DO NOT TOUCH THE DOM!
+        if (isSilent && lastThreadSignature === currentSignature) {
+            return;
+        }
+        lastThreadSignature = currentSignature;
+
         if (th.is_locked && formWrapper) {
             formWrapper.style.display = "none";
         } else if (formWrapper) {
             formWrapper.style.display = "block";
+        }
+
+        // Viewport Anchor Preservation in Thread View
+        let anchorReplyId = null;
+        let anchorReplyTop = 0;
+        if (isSilent) {
+            const visibleCards = Array.from(repliesContainer.querySelectorAll('.reply-container'));
+            for (const card of visibleCards) {
+                const rect = card.getBoundingClientRect();
+                if (rect.bottom > 0 && rect.top < window.innerHeight) {
+                    anchorReplyId = card.id;
+                    anchorReplyTop = rect.top;
+                    break;
+                }
+            }
         }
 
         // Render OP if not already rendered or if not silent
@@ -459,18 +535,40 @@ async function loadThreadView(threadId, isSilent = false) {
                 repliesHtml += renderReplyCard(r, th.id, false);
             }
             repliesContainer.innerHTML = repliesHtml;
+            generateBacklinks();
         } else {
             // In silent auto-update, only append new replies that arrived!
+            const newElements = [];
             for (const r of replies) {
                 if (!document.getElementById(`post_${r.id}`)) {
                     const temp = document.createElement('div');
                     temp.innerHTML = renderReplyCard(r, th.id, false);
-                    repliesContainer.appendChild(temp.firstElementChild);
+                    const el = temp.firstElementChild;
+                    repliesContainer.appendChild(el);
+                    newElements.push(el);
                 }
             }
-        }
 
-        generateBacklinks();
+            // Incremental backlinks: ONLY scan the new replies, never wipe out existing backlinks!
+            for (const el of newElements) {
+                generateBacklinks(el);
+            }
+
+            // Restore scroll anchor if needed
+            if (anchorReplyId) {
+                const restoreAnchor = () => {
+                    const el = document.getElementById(anchorReplyId);
+                    if (el) {
+                        const diff = el.getBoundingClientRect().top - anchorReplyTop;
+                        if (Math.abs(diff) > 0.5) {
+                            window.scrollBy({ top: diff, behavior: 'instant' });
+                        }
+                    }
+                };
+                restoreAnchor();
+                requestAnimationFrame(restoreAnchor);
+            }
+        }
 
         // Check if there was a pending quote
         if (!isSilent) {

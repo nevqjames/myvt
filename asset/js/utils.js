@@ -78,15 +78,18 @@ function unhighlightPost(id) {
     if(el) el.style.boxShadow = ""; 
 }
 
-function generateBacklinks() {
-    // 1. Clear ALL existing backlinks first. 
-    // This ensures we start fresh and catch updates without duplication logic issues.
-    document.querySelectorAll('.backlink-container').forEach(el => el.innerHTML = "");
+function generateBacklinks(scopeElement = null) {
+    // 1. Only clear existing backlinks on a full-page initial load.
+    // In silent/incremental updates, scopeElement is passed, so we NEVER wipe out existing backlinks!
+    if (!scopeElement) {
+        document.querySelectorAll('.backlink-container').forEach(el => el.innerHTML = "");
+    }
 
-    // 2. Scan every comment on the page
-    const allComments = document.querySelectorAll('.comment');
+    // 2. Scan comments within the requested scope
+    const root = scopeElement || document;
+    const comments = root.querySelectorAll ? root.querySelectorAll('.comment') : [];
     
-    allComments.forEach(commentDiv => {
+    comments.forEach(commentDiv => {
         // Identify the Replier (The Child)
         const replierDiv = commentDiv.closest('[id^="post_"]'); 
         if (!replierDiv) return;
@@ -107,6 +110,10 @@ function generateBacklinks() {
             const container = document.getElementById('backlinks_' + targetId);
             
             if (container) {
+                // Prevent duplicate backlinks for the same replier
+                const existing = container.querySelector(`a[href="#post_${replierId}"]`);
+                if (existing) return;
+
                 // Limit visual clutter (max 15 backlinks)
                 if (container.childElementCount < 15) {
                     const displayId = replierId.substring(1,8);
