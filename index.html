@@ -3,10 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MYVT - Malaysian VTuber Board</title>
-    <meta name="description" content="The premier imageboard for the Malaysian Virtual YouTuber community and adjacent Otaku culture.">
-    <meta property="og:title" content="MYVT - Malaysian VTuber Board">
-    <meta property="og:description" content="The premier imageboard for the Malaysian Virtual YouTuber community and adjacent Otaku culture.">
+    <title>OshiMY - Malaysian VTuber &amp; Otaku Imageboard</title>
+    <meta name="description" content="The premier anonymous imageboard for the Malaysian Virtual YouTuber community and Otaku culture. Discuss streams, oshis, anime, and art on OshiMY.">
+    <meta name="keywords" content="OshiMY, Malaysian VTuber, MY VTuber, VTuber Malaysia, anime imageboard, vtuber forum, chuuba, otaku malaysia, /myvt/, anime discussion, vstreamer">
+    <meta name="robots" content="index, follow">
+    
+    <!-- OpenGraph / Facebook / Discord -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="OshiMY">
+    <meta property="og:title" content="OshiMY - Malaysian VTuber &amp; Otaku Imageboard">
+    <meta property="og:description" content="The premier anonymous imageboard for the Malaysian Virtual YouTuber community and Otaku culture. Discuss streams, oshis, anime, and art on OshiMY.">
+    <meta property="og:image" content="https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&h=630&q=80">
+    
+    <!-- Twitter / X Cards -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@OshiMY_board">
+    <meta name="twitter:title" content="OshiMY - Malaysian VTuber &amp; Otaku Imageboard">
+    <meta name="twitter:description" content="The premier anonymous imageboard for the Malaysian Virtual YouTuber community and Otaku culture. Discuss streams, oshis, anime, and art on OshiMY.">
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&h=630&q=80">
+
+    <!-- Schema.org JSON-LD Structured Data for Search Engine Crawlers -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "OshiMY",
+      "alternateName": ["OshiMY Board", "oshimai", "OshiMY Imageboard"],
+      "description": "The premier anonymous imageboard for the Malaysian Virtual YouTuber community and adjacent Otaku culture.",
+      "inLanguage": ["en", "ms"],
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://oshimy.moe/?b={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
     
     <!-- LOAD CSS -->
     <link rel="stylesheet" href="asset/css/core.css">
@@ -16,7 +47,7 @@
 <body>
     <!-- 1. HEADER -->
     <div class="header">
-        <h1 id="boardTitle">MYVT - Portal</h1>
+        <h1 id="boardTitle">OshiMY - Portal</h1>
         <div class="nav-boards" id="navBoards">
             <!-- Dynamic board links injected by JS -->
         </div>
@@ -70,7 +101,7 @@
     <div id="homeView" class="home-view-wrapper" style="display:none;">
         <!-- BANNER IMAGE SLOT -->
         <div class="home-banner-wrapper" id="homeBannerWrapper">
-            <img id="homeBannerImg" class="home-banner-img" src="https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&h=300&q=80" alt="MYVT Community Banner">
+            <img id="homeBannerImg" class="home-banner-img" src="https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&h=300&q=80" alt="OshiMY Community Banner">
             
             <!-- Admin Hover Controls -->
             <div id="bannerAdminControl" class="banner-admin-control" style="display:none;">
@@ -93,8 +124,11 @@
         <!-- MAIN (CENTER) BOX -->
         <div class="home-container">
             <div class="welcome-section">
-                <h2>Selamat Datang to /myvt/</h2>
-                <p>The premier imageboard for the Malaysian Virtual YouTuber community and adjacent Otaku culture.</p>
+                <h2>Selamat Datang to OshiMY (おしまい)</h2>
+                <p>The premier anonymous imageboard for the Malaysian Virtual YouTuber community and adjacent Otaku culture.</p>
+                <div style="margin-top: 8px; font-size: 0.9em; opacity: 0.9; font-style: italic; color: var(--main-accent);">
+                    🏮 <i>"It's never oshimai for your oshi."</i>
+                </div>
             </div>
 
             <div class="instruction-grid">
@@ -173,9 +207,14 @@
             </div>
 
             <div class="rules-box">
-                <h3>📜 Rules</h3>
-                <p>1. No illegal content (CSAM). 2. No spam or commercial advertising. 3. Be civil regarding local talents and their identities.</p>
+                <h3>📜 OshiMY Guidelines</h3>
+                <p>1. No illegal content (CSAM). 2. No spam or commercial advertising. 3. Be civil regarding local talents and their identities. 4. Post in the appropriate boards.</p>
             </div>
+
+            <footer style="margin-top: 25px; padding-top: 15px; border-top: 1px dashed var(--border-color); text-align: center; font-size: 0.82em; opacity: 0.75;">
+                <p><b>OshiMY (おしまい)</b> • Malaysian VTuber &amp; Otaku Imageboard</p>
+                <p style="font-size: 0.9em; margin-top: 4px;">An independent community text &amp; imageboard created by and for Malaysian fans.</p>
+            </footer>
 
             <div class="footer-secret">
                 <a href="?b=myvth" class="secret-link">.</a> <!-- Hidden entry point -->

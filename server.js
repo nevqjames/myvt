@@ -532,5 +532,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`MYVT Server running on http://0.0.0.0:${PORT}`);
+    console.log(`OshiMY Server running on http://0.0.0.0:${PORT}`);
 });

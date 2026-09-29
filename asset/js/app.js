@@ -57,8 +57,8 @@ function router() {
         if (threadView) threadView.style.display = "none";
         if (formWrapper) formWrapper.style.display = "none";
         if (topDivider) topDivider.style.display = "none";
-        document.getElementById('boardTitle').innerText = "MYVT - Portal";
-        document.title = "MYVT - Portal";
+        document.getElementById('boardTitle').innerText = "OshiMY - Portal";
+        document.title = "OshiMY - Malaysian VTuber & Otaku Imageboard";
         loadPortalStats();
         return;
     }
@@ -68,7 +68,7 @@ function router() {
     if (topDivider) topDivider.style.display = "block";
     
     // Set Titles & Theme
-    document.title = BOARDS[currentBoard].title;
+    document.title = `${BOARDS[currentBoard].title} | OshiMY`;
     document.getElementById('boardTitle').innerText = BOARDS[currentBoard].title;
     
     if (BOARDS[currentBoard].type === 'nsfw') {
@@ -451,6 +451,11 @@ async function loadThreadView(threadId, isSilent = false) {
             return;
         }
         lastThreadSignature = currentSignature;
+
+        if (!isSilent) {
+            const threadSubject = th.subject || (th.comment ? th.comment.substring(0, 32) + '...' : `Thread #${th.id.substring(1, 9)}`);
+            document.title = `/${currentBoard}/ - ${threadSubject} | OshiMY`;
+        }
 
         if (th.is_locked && formWrapper) {
             formWrapper.style.display = "none";
